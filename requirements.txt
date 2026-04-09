@@ -1,0 +1,9 @@
+tensorflow
+tensorflow-hub
+librosa
+soundfile
+pandas
+matplotlib
+scikit-learn
+numpy
+joblib
