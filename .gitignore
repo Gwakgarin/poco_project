@@ -2,3 +2,8 @@
 __pycache__/
 *.pyc
 .DS_Store
+
+data/raw/
+data/split_5s/
+data/embeddings/
+data/embedding_metadata.csv
