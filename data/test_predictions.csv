@@ -1,0 +1,11 @@
+﻿raw_file,split_file,embedding_file,pred_label,pred_score
+test_elevator.m4a,test_elevator_seg000.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg000.npy,washing_machine,0.28
+test_elevator.m4a,test_elevator_seg001.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg001.npy,washing_machine,0.41
+test_elevator.m4a,test_elevator_seg002.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg002.npy,elevator,0.32
+test_elevator.m4a,test_elevator_seg003.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg003.npy,elevator,0.39
+test_elevator.m4a,test_elevator_seg004.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg004.npy,elevator,0.31
+test_elevator.m4a,test_elevator_seg005.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg005.npy,traffic,0.32
+test_elevator.m4a,test_elevator_seg006.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg006.npy,washing_machine,0.36
+test_elevator.m4a,test_elevator_seg007.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg007.npy,washing_machine,0.4
+test_elevator.m4a,test_elevator_seg008.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg008.npy,elevator,0.35
+test_elevator.m4a,test_elevator_seg009.wav,/Users/nazzang/Desktop/20220975/졸프/poco_project/data/test_embeddings/test_elevator/test_elevator_seg009.npy,traffic,0.32

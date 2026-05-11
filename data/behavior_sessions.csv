@@ -1,0 +1,7 @@
+﻿raw_file,behavior,main_event,start_sec,end_sec,event_count,events,duration_sec,rule_result
+test_elevator.m4a,laundry,washing_machine,0,10,2,"washing_machine,washing_machine",10,laundry
+test_elevator.m4a,movement,elevator,10,25,3,"elevator,elevator,elevator",15,movement
+test_elevator.m4a,outing_related,traffic,25,30,1,traffic,5,outing_related
+test_elevator.m4a,laundry,washing_machine,30,40,2,"washing_machine,washing_machine",10,laundry
+test_elevator.m4a,movement,elevator,40,45,1,elevator,5,movement
+test_elevator.m4a,outing_related,traffic,45,50,1,traffic,5,outing_related
