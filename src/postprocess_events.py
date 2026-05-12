@@ -14,7 +14,6 @@ SEGMENT_SECONDS = 5
 # 같은 세션으로 묶을 최대 간격
 SESSION_GAP_SECONDS = {
     "washing_machine": 180,  # 세탁기는 길게 지속될 수 있음
-    "vaccum": 60,
     "vacuum": 60,
     "dishes": 60,
     "microwave": 30,
@@ -28,7 +27,6 @@ SESSION_GAP_SECONDS = {
 # 이벤트를 행동 후보로 매핑
 EVENT_TO_BEHAVIOR = {
     "washing_machine": "laundry",
-    "vaccum": "cleaning",
     "vacuum": "cleaning",
     "microwave": "meal_prep",
     "dishes": "dish_or_meal_related",
@@ -167,8 +165,8 @@ def apply_sequence_rules(session_df: pd.DataFrame) -> pd.DataFrame:
                 if row["event_count"] >= 6 or row["duration_sec"] >= 30:
                     session_df.loc[i, "rule_result"] = "laundry_confirmed"
 
-            # 청소기: vacuum/vaccum 반복 시 청소로 확정
-            if event in ["vaccum", "vacuum"]:
+            # 청소기: vacuum 반복 시 청소로 확정
+            if event == "vacuum":
                 if row["event_count"] >= 4 or row["duration_sec"] >= 20:
                     session_df.loc[i, "rule_result"] = "cleaning_confirmed"
 
