@@ -1,0 +1,20 @@
+[
+    {
+        "start_sec": 0,
+        "end_sec": 50,
+        "representative_event": "elevator",
+        "rule_result": "elevator",
+        "event_labels": [
+            "elevator",
+            "elevator",
+            "elevator",
+            "elevator",
+            "elevator",
+            "elevator",
+            "elevator",
+            "elevator",
+            "elevator",
+            "dishes"
+        ]
+    }
+]
