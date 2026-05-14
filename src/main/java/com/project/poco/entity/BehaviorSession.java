@@ -14,13 +14,8 @@ public class BehaviorSession {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    private String rawFile;
-    private String behavior;
-    private String mainEvent;
+    private String representativeEvent;
+    private String ruleResult;
     private Integer startSec;
     private Integer endSec;
-    private Integer eventCount;
-    private String events;
-    private Integer durationSec;
-    private String ruleResult;
 }
