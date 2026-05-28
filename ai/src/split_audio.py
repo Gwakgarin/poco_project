@@ -7,12 +7,14 @@ OUTPUT_ROOT = "data/split_5s"
 
 TARGET_SR = 16000
 SEGMENT_SECONDS = 5
-MIN_LAST_SECONDS = 2.0
+MIN_LAST_SECONDS = SEGMENT_SECONDS
 SUPPORTED_EXTENSIONS = (".wav", ".mp3", ".m4a", ".flac", ".ogg")
 
-def split_audio_file(file_path, output_dir, target_sr=16000, segment_seconds=5, min_last_seconds=2.0):
+def split_audio_file(file_path, output_dir, target_sr=16000, segment_seconds=5, min_last_seconds=None):
     base_name = os.path.splitext(os.path.basename(file_path))[0]
     y, sr = librosa.load(file_path, sr=target_sr, mono=True)
+    if min_last_seconds is None:
+        min_last_seconds = segment_seconds
     segment_length = target_sr * segment_seconds
     min_last_length = int(target_sr * min_last_seconds)
     total_length = len(y)

@@ -7,12 +7,13 @@ import librosa
 import numpy as np
 import pandas as pd
 import soundfile as sf
+from sklearn.metrics import classification_report, confusion_matrix
 import tensorflow as tf
 import tensorflow_hub as hub
 
-# =========================
+
 # 경로 설정
-# =========================
+
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 TEST_RAW_DIR = PROJECT_ROOT / "data" / "test_raw"
@@ -27,11 +28,9 @@ TEST_EMB_DIR.mkdir(parents=True, exist_ok=True)
 SUPPORTED_EXTENSIONS = (".wav", ".mp3", ".m4a", ".flac", ".ogg")
 TARGET_SR = 16000
 SEGMENT_SECONDS = 5
-MIN_LAST_SECONDS = 2.0
+MIN_LAST_SECONDS = SEGMENT_SECONDS
 
-# =========================
 # YAMNet 로드
-# =========================
 yamnet_model = hub.load("https://tfhub.dev/google/yamnet/1")
 
 
@@ -40,7 +39,7 @@ def split_audio_file(
     output_dir: Path,
     target_sr: int = 16000,
     segment_seconds: int = 5,
-    min_last_seconds: float = 2.0,
+    min_last_seconds: float = 5.0,
 ) -> list[Path]:
     """원본 오디오를 5초 단위로 분할하고 저장."""
     base_name = file_path.stem
@@ -97,9 +96,9 @@ def main():
         raise FileNotFoundError(f"테스트 원본 폴더가 없습니다: {TEST_RAW_DIR}")
 
     raw_files = [
-        f for f in TEST_RAW_DIR.iterdir()
-        if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
-    ]
+    f for f in TEST_RAW_DIR.rglob("*")
+    if f.is_file() and f.suffix.lower() in SUPPORTED_EXTENSIONS
+]
 
     if not raw_files:
         raise ValueError(f"테스트할 오디오 파일이 없습니다: {TEST_RAW_DIR}")
@@ -112,11 +111,13 @@ def main():
     for raw_file in sorted(raw_files):
         print(f"\n[원본 파일] {raw_file.name}")
 
-        # 원본 파일별 split 저장 폴더
-        split_subdir = TEST_SPLIT_DIR / raw_file.stem
+        rel_dir = raw_file.relative_to(TEST_RAW_DIR).parent
+        true_label = raw_file.relative_to(TEST_RAW_DIR).parts[0]
+
+        split_subdir = TEST_SPLIT_DIR / rel_dir / raw_file.stem
         split_subdir.mkdir(parents=True, exist_ok=True)
 
-        emb_subdir = TEST_EMB_DIR / raw_file.stem
+        emb_subdir = TEST_EMB_DIR / rel_dir / raw_file.stem
         emb_subdir.mkdir(parents=True, exist_ok=True)
 
         split_files = split_audio_file(
@@ -150,6 +151,7 @@ def main():
             file_preds.append(pred_label)
 
             records.append({
+                "true_label": true_label,
                 "raw_file": raw_file.name,
                 "split_file": split_file.name,
                 "embedding_file": str(emb_path),
@@ -168,6 +170,25 @@ def main():
             print(f"[원본 파일 최종 예측] {raw_file.name} -> {majority_pred}")
 
     result_df = pd.DataFrame(records)
+
+    if not result_df.empty:
+        print("\n=== Test Classification Report (segment-level) ===")
+        print(classification_report(
+            result_df["true_label"],
+            result_df["pred_label"],
+            zero_division=0
+        ))
+
+        labels = sorted(result_df["true_label"].unique())
+
+        print("\n=== Test Confusion Matrix (segment-level) ===")
+        print(labels)
+        print(confusion_matrix(
+            result_df["true_label"],
+            result_df["pred_label"],
+            labels=labels
+        ))
+
     result_df.to_csv(RESULT_CSV, index=False, encoding="utf-8-sig")
     print(f"\n테스트 결과 저장 완료: {RESULT_CSV}")
 

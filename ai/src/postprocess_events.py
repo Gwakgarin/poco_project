@@ -1,252 +1,118 @@
 import json
-from collections import Counter
-from pathlib import Path
 import re
+from pathlib import Path
+
 import pandas as pd
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-INPUT_CSV = PROJECT_ROOT / "data" / "test_predictions.csv"
-OUTPUT_EVENT_CSV = PROJECT_ROOT / "data" / "postprocessed_events.csv"
-OUTPUT_SESSION_CSV = PROJECT_ROOT / "data" / "behavior_sessions.csv"
+INPUT_CSV = PROJECT_ROOT / "data" / "tflite_predictions.csv"
+OUTPUT_EVENT_LOG_CSV = PROJECT_ROOT / "data" / "sound_event_log.csv"
+OUTPUT_EVENT_SESSION_CSV = PROJECT_ROOT / "data" / "sound_event_sessions.csv"
+OUTPUT_EVENT_SESSION_JSON = PROJECT_ROOT / "data" / "sound_event_sessions.json"
 
 SEGMENT_SECONDS = 5
 
-# 같은 세션으로 묶을 최대 간격
-SESSION_GAP_SECONDS = {
-    "washing_machine": 180,  # 세탁기는 길게 지속될 수 있음
-    "vacuum": 60,
-    "dishes": 60,
-    "microwave": 30,
-    "door_event": 30,
-    "elevator": 60,
-    "traffic": 60,
-    "cooking": 120,
-    "dish_washing": 120,
-}
-
-# 이벤트를 행동 후보로 매핑
-EVENT_TO_BEHAVIOR = {
-    "washing_machine": "laundry",
-    "vacuum": "cleaning",
-    "microwave": "meal_prep",
-    "dishes": "dish_or_meal_related",
-    "door_event": "entry_or_exit",
-    "elevator": "movement",
-    "traffic": "outing_related",
-    "cooking": "meal_prep",
-    "dish_washing": "dish_washing",
-}
-
 
 def extract_seg_index(split_file: str) -> int:
+    match = re.search(r"_seg(\d+)", Path(split_file).name)
+    return int(match.group(1)) if match else 0
+
+
+def create_event_sessions(df: pd.DataFrame) -> pd.DataFrame:
     """
-    파일명에서 seg 번호 추출.
-    예: test_elevator_seg003.wav -> 3
+    같은 raw_file 안에서 같은 smoothed_label이 연속되면 하나의 소리 이벤트 세션으로 묶는다.
+    행동 확정은 하지 않고, classifier가 감지한 소리 이벤트만 시간 구간으로 정리한다.
     """
-    name = Path(split_file).name
-    match = re.search(r"_seg(\d+)", name)
-    if match:
-        return int(match.group(1))
-    return 0
-
-
-def smooth_predictions(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    앞/현재/뒤 예측 결과를 이용해 일시적인 오분류를 보정.
-    기본 방식:
-    - 이전 라벨과 다음 라벨이 같고
-    - 현재 라벨만 다르면
-    - 현재 라벨을 앞뒤 라벨로 보정
-    """
-    df = df.copy()
-    df["smoothed_label"] = df["pred_label"]
-
-    for raw_file, group in df.groupby("raw_file"):
-        idx_list = list(group.index)
-
-        for i in range(1, len(idx_list) - 1):
-            prev_idx = idx_list[i - 1]
-            curr_idx = idx_list[i]
-            next_idx = idx_list[i + 1]
-
-            prev_label = df.loc[prev_idx, "pred_label"]
-            curr_label = df.loc[curr_idx, "pred_label"]
-            next_label = df.loc[next_idx, "pred_label"]
-
-            if prev_label == next_label and curr_label != prev_label:
-                df.loc[curr_idx, "smoothed_label"] = prev_label
-
-    return df
-
-
-def create_sessions(df, gap_threshold=30):
     sessions = []
 
-    current_session = {
-        "start_sec": df.iloc[0]["start_sec"],
-        "end_sec": df.iloc[0]["end_sec"],
-        "events": [],
-        "event_labels": []
-    }
+    for raw_file, group in df.groupby("raw_file", sort=False):
+        group = group.sort_values("seg_index").reset_index(drop=True)
 
-    for _, row in df.iterrows():
-        label = row["smoothed_label"]
-        start = row["start_sec"]
-        end = row["end_sec"]
+        current_label = None
+        current_start = None
+        current_end = None
+        current_scores = []
 
-        # 현재 세션과 시간 차이
-        gap = start - current_session["end_sec"]
+        for _, row in group.iterrows():
+            label = row["smoothed_label"]
+            start_sec = int(row["start_sec"])
+            end_sec = int(row["end_sec"])
+            pred_score = row.get("pred_score")
 
-        # gap이 작으면 같은 세션으로 묶음
-        if gap <= gap_threshold:
-            current_session["end_sec"] = end
-            current_session["events"].append(row.to_dict())
-            current_session["event_labels"].append(label)
+            if current_label is None:
+                current_label = label
+                current_start = start_sec
+                current_end = end_sec
+                current_scores = [pred_score]
+                continue
 
-        else:
-            # representative event 계산
-            labels = current_session["event_labels"]
+            if label == current_label:
+                current_end = end_sec
+                current_scores.append(pred_score)
+                continue
 
-            representative = get_representative_event(labels)
+            sessions.append(
+                build_session_record(
+                    raw_file=raw_file,
+                    start_sec=current_start,
+                    end_sec=current_end,
+                    event_label=current_label,
+                    scores=current_scores,
+                )
+            )
 
-            current_session["representative_event"] = representative
+            current_label = label
+            current_start = start_sec
+            current_end = end_sec
+            current_scores = [pred_score]
 
-            sessions.append(current_session)
-
-            # 새 세션 시작
-            current_session = {
-                "start_sec": start,
-                "end_sec": end,
-                "events": [row.to_dict()],
-                "event_labels": [label]
-            }
-
-    # 마지막 세션 처리
-    labels = current_session["event_labels"]
-    representative = get_representative_event(labels)
-
-    current_session["representative_event"] = representative
-
-    sessions.append(current_session)
+        if current_label is not None:
+            sessions.append(
+                build_session_record(
+                    raw_file=raw_file,
+                    start_sec=current_start,
+                    end_sec=current_end,
+                    event_label=current_label,
+                    scores=current_scores,
+                )
+            )
 
     return pd.DataFrame(sessions)
 
-def get_representative_event(labels):
-    counter = Counter(labels)
 
-    # 우선순위 기반
-    priority = [
-        "vacuum",
-        "washing_machine",
-        "elevator",
-        "traffic",
-        "microwave",
-        "door_event",
-        "dishes"
-    ]
+def build_session_record(
+    raw_file: str,
+    start_sec: int,
+    end_sec: int,
+    event_label: str,
+    scores: list,
+) -> dict:
+    duration_sec = end_sec - start_sec
+    event_count = len(scores)
+    numeric_scores = pd.to_numeric(pd.Series(scores), errors="coerce").dropna()
+    mean_score = (
+        float(numeric_scores.mean())
+        if not numeric_scores.empty
+        else None
+    )
 
-    for p in priority:
-        if p in labels:
-            return p
-
-    # fallback
-    return counter.most_common(1)[0][0]
-
-
-
-def apply_sequence_rules(session_df: pd.DataFrame) -> pd.DataFrame:
-    """
-    세션 간 조합 규칙 적용.
-    representative_event 기준으로 행동 확정.
-    """
-
-    if len(session_df) == 0:
-        return session_df
-
-    session_df = session_df.copy()
-
-    # 기본 결과
-    session_df["rule_result"] = session_df["representative_event"]
-
-    for i, row in session_df.iterrows():
-
-        event = row["representative_event"]
-
-        labels = row["event_labels"]
-
-        duration = row["end_sec"] - row["start_sec"]
-
-        event_count = len(labels)
-
-        # 세탁기 → laundry
-        if event == "washing_machine":
-
-            if event_count >= 6 or duration >= 30:
-
-                session_df.loc[
-                    i,
-                    "rule_result"
-                ] = "laundry_confirmed"
-
-        # 청소기 → cleaning
-        elif event == "vacuum":
-
-            if event_count >= 4 or duration >= 20:
-
-                session_df.loc[
-                    i,
-                    "rule_result"
-                ] = "cleaning_confirmed"
-
-        # 전자레인지 → meal prep
-        elif event == "microwave":
-
-            if event_count >= 2 or duration >= 10:
-
-                session_df.loc[
-                    i,
-                    "rule_result"
-                ] = "meal_prep_confirmed"
-
-    # 외출 조합 규칙
-    rows = list(session_df.iterrows())
-
-    for idx_a, row_a in rows:
-
-        if row_a["representative_event"] != "door_event":
-            continue
-
-        for idx_b, row_b in rows:
-
-            if row_b["start_sec"] <= row_a["start_sec"]:
-                continue
-
-            gap = row_b["start_sec"] - row_a["end_sec"]
-
-            if (
-                gap <= 180
-                and row_b["representative_event"]
-                in ["elevator", "traffic"]
-            ):
-
-                session_df.loc[
-                    idx_a,
-                    "rule_result"
-                ] = "outing_candidate"
-
-                session_df.loc[
-                    idx_b,
-                    "rule_result"
-                ] = "outing_candidate"
-
-    return session_df
+    return {
+        "raw_file": raw_file,
+        "start_sec": start_sec,
+        "end_sec": end_sec,
+        "event_label": event_label,
+        "event_count": event_count,
+        "duration_sec": duration_sec,
+        "mean_score": mean_score,
+        "status": "event_only",
+    }
 
 
-def main():
+def main() -> None:
     if not INPUT_CSV.exists():
-        raise FileNotFoundError(f"테스트 예측 CSV가 없습니다: {INPUT_CSV}")
+        raise FileNotFoundError(f"예측 CSV가 없습니다: {INPUT_CSV}")
 
     df = pd.read_csv(INPUT_CSV)
 
@@ -256,96 +122,61 @@ def main():
     if missing:
         raise ValueError(f"필요한 컬럼이 없습니다: {missing}")
 
-    # split 번호 기반 시간 계산
     df["seg_index"] = df["split_file"].apply(extract_seg_index)
-
     df["start_sec"] = df["seg_index"] * SEGMENT_SECONDS
     df["end_sec"] = df["start_sec"] + SEGMENT_SECONDS
 
-    df = df.sort_values(
-        ["raw_file", "seg_index"]
-    ).reset_index(drop=True)
+    df = df.sort_values(["raw_file", "seg_index"]).reset_index(drop=True)
 
-    # 1. 예측 보정
-    smoothed_df = smooth_predictions(df)
+    # 실시간 흐름에 맞춰 과한 보정 없이 classifier 예측을 그대로 이벤트 로그로 남긴다.
+    df["smoothed_label"] = df["pred_label"]
 
-    # 2. 세션 생성
-    session_df = create_sessions(smoothed_df)
+    output_cols = [
+        "raw_file",
+        "split_file",
+        "pred_label",
+        "smoothed_label",
+        "seg_index",
+        "start_sec",
+        "end_sec",
+    ]
 
-    # 3. 규칙 적용
-    session_df = apply_sequence_rules(session_df)
+    if "pred_score" in df.columns:
+        output_cols.insert(4, "pred_score")
 
-    # CSV 저장
-    smoothed_df.to_csv(
-        OUTPUT_EVENT_CSV,
+    event_log_df = df[output_cols].copy()
+    session_df = create_event_sessions(event_log_df)
+
+    event_log_df.to_csv(
+        OUTPUT_EVENT_LOG_CSV,
         index=False,
-        encoding="utf-8-sig"
+        encoding="utf-8-sig",
     )
 
     session_df.to_csv(
-        OUTPUT_SESSION_CSV,
+        OUTPUT_EVENT_SESSION_CSV,
         index=False,
-        encoding="utf-8-sig"
+        encoding="utf-8-sig",
     )
 
-    # =========================
-    # JSON 저장용 구조 변환
-    # =========================
-
-    json_results = []
-
-    for _, row in session_df.iterrows():
-
-        session_data = {
-            "start_sec": row["start_sec"],
-            "end_sec": row["end_sec"],
-            "representative_event": row["representative_event"],
-            "rule_result": row["rule_result"],
-            "event_labels": row["event_labels"]
-        }
-
-        json_results.append(session_data)
-
-    # JSON 저장
-    with open(
-        "data/behavior_sessions.json",
-        "w",
-        encoding="utf-8"
-    ) as f:
-
+    with open(OUTPUT_EVENT_SESSION_JSON, "w", encoding="utf-8") as f:
         json.dump(
-            json_results,
+            session_df.to_dict(orient="records"),
             f,
             ensure_ascii=False,
-            indent=4
+            indent=4,
         )
 
-    print("\nJSON 저장 완료!")
+    print("\n=== 5초 단위 소리 이벤트 로그 ===")
+    print(event_log_df.head(20))
 
-    print("\n=== 보정된 이벤트 결과 ===")
-    print(
-        smoothed_df[[
-            "raw_file",
-            "split_file",
-            "pred_label",
-            "smoothed_label",
-            "start_sec",
-            "end_sec"
-        ]].head(20)
-    )
-
-    print("\n=== 행동 세션 결과 ===")
-    print(
-        session_df[[
-            "start_sec",
-            "end_sec",
-            "representative_event",
-            "rule_result"
-        ]]
-    )
+    print("\n=== 소리 이벤트 세션 결과 ===")
+    print(session_df)
 
     print("\n저장 완료")
- 
+    print("이벤트 로그:", OUTPUT_EVENT_LOG_CSV)
+    print("이벤트 세션:", OUTPUT_EVENT_SESSION_CSV)
+    print("JSON:", OUTPUT_EVENT_SESSION_JSON)
 
 
 if __name__ == "__main__":
