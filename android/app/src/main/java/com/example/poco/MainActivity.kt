@@ -1,22 +1,22 @@
 package com.example.poco
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
-import android.util.Log
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
-import retrofit2.http.GET
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.launch
 
 data class SoundEventResponse(
@@ -31,86 +31,104 @@ data class SoundEventResponse(
     val smoothedLabel: String
 )
 
-interface ApiService {
-    @GET("/api/sound-events")
-    suspend fun getSoundEvents(): List<SoundEventResponse>
-}
-
-object RetrofitClient {
-    private val retrofit = Retrofit.Builder()
-        .baseUrl("http://10.0.2.2:8080/")
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-
-    val api: ApiService = retrofit.create(ApiService::class.java)
-}
-
 class MainActivity : ComponentActivity() {
-    private lateinit var audioTrigger: AudioTrigger
-    private var isAudioListening by mutableStateOf(false)
-
-    private val audioPermissionLauncher = registerForActivityResult(
-        ActivityResultContracts.RequestPermission()
-    ) { isGranted ->
-        if (isGranted) {
-            audioTrigger.startListening()
-            isAudioListening = true
-        } else {
-            isAudioListening = false
-            Log.e("POCO", "RECORD_AUDIO permission denied")
-        }
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        audioTrigger = AudioTrigger(this) {
-            Log.d("POCO", "소리 감지됨. 5초 분석 시작")
-            // TODO: 여기서 5초 녹음 + YAMNet + classifier 실행 함수 호출
+        if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+        } else {
+            startAudioMonitorService()
         }
 
         setContent {
-            PocoScreen(
-                isListening = isAudioListening,
-                onStartAudio = ::startAudioTrigger,
-                onStopAudio = ::stopAudioTrigger
-            )
+            PocoScreen()
         }
     }
 
-    override fun onDestroy() {
-        stopAudioTrigger()
-        super.onDestroy()
-    }
-
-    private fun startAudioTrigger() {
-        if (ContextCompat.checkSelfPermission(
-                this,
-                Manifest.permission.RECORD_AUDIO
-            ) == PackageManager.PERMISSION_GRANTED
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode == REQUEST_RECORD_AUDIO &&
+            grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
         ) {
-            audioTrigger.startListening()
-            isAudioListening = true
-        } else {
-            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            startAudioMonitorService()
         }
     }
 
-    private fun stopAudioTrigger() {
-        audioTrigger.stopListening()
-        isAudioListening = false
+    private fun startAudioMonitorService() {
+        val intent = Intent(this, AudioMonitorService::class.java)
+        ContextCompat.startForegroundService(this, intent)
+    }
+
+    private companion object {
+        const val REQUEST_RECORD_AUDIO = 1
     }
 }
 
 @Composable
-fun PocoScreen(
-    isListening: Boolean,
-    onStartAudio: () -> Unit,
-    onStopAudio: () -> Unit
-) {
+fun PocoScreen() {
     var eventList by remember { mutableStateOf(listOf<SoundEventResponse>()) }
-    var serverStatus by remember { mutableStateOf("대기 중") }
+    var monitorStatus by remember { mutableStateOf("마이크 감시 중") }
+    var lastResult by remember { mutableStateOf("아직 분류된 소리 없음") }
+    var serverStatus by remember { mutableStateOf("서버 대기 중") }
+    var currentDb by remember { mutableStateOf<Double?>(null) }
+    var currentPeak by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    DisposableEffect(context) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action != AudioMonitorService.ACTION_RESULT) return
+
+                intent.getStringExtra(AudioMonitorService.EXTRA_MONITOR_STATUS)?.let {
+                    monitorStatus = it
+                }
+                if (intent.hasExtra(AudioMonitorService.EXTRA_DB)) {
+                    currentDb = intent.getDoubleExtra(AudioMonitorService.EXTRA_DB, 0.0)
+                }
+                if (intent.hasExtra(AudioMonitorService.EXTRA_PEAK)) {
+                    currentPeak = intent.getIntExtra(AudioMonitorService.EXTRA_PEAK, 0)
+                }
+
+                val error = intent.getStringExtra(AudioMonitorService.EXTRA_ERROR)
+                if (error != null) {
+                    monitorStatus = "분류 실패"
+                    lastResult = error
+                    return
+                }
+
+                val label = intent.getStringExtra(AudioMonitorService.EXTRA_LABEL) ?: "unknown"
+                val score = intent.getFloatExtra(AudioMonitorService.EXTRA_SCORE, 0f)
+                val wavPath = intent.getStringExtra(AudioMonitorService.EXTRA_WAV_PATH).orEmpty()
+                monitorStatus = "마이크 감시 중"
+                lastResult = "$label / ${"%.3f".format(score)}"
+                intent.getStringExtra(AudioMonitorService.EXTRA_SERVER_STATUS)?.let {
+                    serverStatus = it
+                }
+                if (wavPath.isNotBlank()) {
+                    lastResult += "\n$wavPath"
+                }
+            }
+        }
+
+        val filter = IntentFilter(AudioMonitorService.ACTION_RESULT)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            @Suppress("DEPRECATION")
+            context.registerReceiver(receiver, filter)
+        }
+
+        onDispose {
+            context.unregisterReceiver(receiver)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -118,39 +136,26 @@ fun PocoScreen(
             .padding(24.dp),
         verticalArrangement = Arrangement.Center
     ) {
-        Text("POCO 서버 연결 테스트", fontSize = 28.sp)
+        Text("POCO 소리 감지", fontSize = 28.sp)
 
         Spacer(modifier = Modifier.height(28.dp))
+
+        Text("감시 상태", fontSize = 20.sp)
+        Text(monitorStatus, fontSize = 22.sp)
+        Text(
+            text = "dB ${currentDb?.let { "%.1f".format(it) } ?: "-"} / peak ${currentPeak ?: "-"}",
+            fontSize = 16.sp
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Text("마지막 분류 결과", fontSize = 20.sp)
+        Text(lastResult, fontSize = 16.sp)
+
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text("서버 상태", fontSize = 20.sp)
-        Text(serverStatus, fontSize = 22.sp)
-
-        Spacer(modifier = Modifier.height(28.dp))
-
-        Text("소리 감지", fontSize = 20.sp)
-        Text(if (isListening) "감지 중" else "중지됨", fontSize = 22.sp)
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Button(
-                enabled = !isListening,
-                onClick = {
-                    onStartAudio()
-                }
-            ) {
-                Text("소리 감지 시작")
-            }
-
-            Button(
-                enabled = isListening,
-                onClick = {
-                    onStopAudio()
-                }
-            ) {
-                Text("소리 감지 중지")
-            }
-        }
+        Text(serverStatus, fontSize = 16.sp)
 
         Spacer(modifier = Modifier.height(28.dp))
 
@@ -177,11 +182,11 @@ fun PocoScreen(
                     serverStatus = "서버 조회 중..."
 
                     try {
-                        val result = RetrofitClient.api.getSoundEvents()
+                        val result = ServerApiClient.api.getSoundEvents()
                         eventList = result
                         serverStatus = "서버 조회 성공"
                     } catch (e: Exception) {
-                        serverStatus = "서버 조회 실패: ${e.message}"
+                        serverStatus = "서버 조회 실패: ${e.message ?: e::class.java.simpleName}"
                     }
                 }
             }
