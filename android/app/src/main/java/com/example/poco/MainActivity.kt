@@ -1,8 +1,13 @@
 package com.example.poco
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.os.Bundle
+import android.util.Log
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -40,16 +45,69 @@ object RetrofitClient {
     val api: ApiService = retrofit.create(ApiService::class.java)
 }
 
-class MainActivity : ComponentActivity() {    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent {
-            PocoScreen()
+class MainActivity : ComponentActivity() {
+    private lateinit var audioTrigger: AudioTrigger
+    private var isAudioListening by mutableStateOf(false)
+
+    private val audioPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            audioTrigger.startListening()
+            isAudioListening = true
+        } else {
+            isAudioListening = false
+            Log.e("POCO", "RECORD_AUDIO permission denied")
         }
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+
+        audioTrigger = AudioTrigger(this) {
+            Log.d("POCO", "소리 감지됨. 5초 분석 시작")
+            // TODO: 여기서 5초 녹음 + YAMNet + classifier 실행 함수 호출
+        }
+
+        setContent {
+            PocoScreen(
+                isListening = isAudioListening,
+                onStartAudio = ::startAudioTrigger,
+                onStopAudio = ::stopAudioTrigger
+            )
+        }
+    }
+
+    override fun onDestroy() {
+        stopAudioTrigger()
+        super.onDestroy()
+    }
+
+    private fun startAudioTrigger() {
+        if (ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        ) {
+            audioTrigger.startListening()
+            isAudioListening = true
+        } else {
+            audioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
+
+    private fun stopAudioTrigger() {
+        audioTrigger.stopListening()
+        isAudioListening = false
     }
 }
 
 @Composable
-fun PocoScreen() {
+fun PocoScreen(
+    isListening: Boolean,
+    onStartAudio: () -> Unit,
+    onStopAudio: () -> Unit
+) {
     var eventList by remember { mutableStateOf(listOf<SoundEventResponse>()) }
     var serverStatus by remember { mutableStateOf("대기 중") }
     val scope = rememberCoroutineScope()
@@ -66,6 +124,33 @@ fun PocoScreen() {
 
         Text("서버 상태", fontSize = 20.sp)
         Text(serverStatus, fontSize = 22.sp)
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Text("소리 감지", fontSize = 20.sp)
+        Text(if (isListening) "감지 중" else "중지됨", fontSize = 22.sp)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            Button(
+                enabled = !isListening,
+                onClick = {
+                    onStartAudio()
+                }
+            ) {
+                Text("소리 감지 시작")
+            }
+
+            Button(
+                enabled = isListening,
+                onClick = {
+                    onStopAudio()
+                }
+            ) {
+                Text("소리 감지 중지")
+            }
+        }
 
         Spacer(modifier = Modifier.height(28.dp))
 
