@@ -202,7 +202,6 @@ class AudioMonitorService : Service() {
         }
         Log.d("POCO", "AudioMonitorService $serverStatus")
 
-        notifyResult(result, wavFile)
         sendResult(result, wavFile, serverStatus)
     }
 
@@ -281,17 +280,6 @@ class AudioMonitorService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun notifyResult(result: ClassificationResult, wavFile: File) {
-        val manager = getSystemService(NotificationManager::class.java)
-        manager.notify(
-            RESULT_NOTIFICATION_ID,
-            notification(
-                "Detected ${result.label}",
-                "score=${"%.3f".format(result.score)} saved=${wavFile.name}"
-            ).build()
-        )
-    }
-
     private fun startAsForeground(title: String, text: String) {
         val foregroundNotification = notification(title, text).setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
@@ -351,7 +339,6 @@ class AudioMonitorService : Service() {
 
         private const val CHANNEL_ID = "poco_audio_monitor"
         private const val NOTIFICATION_ID = 1001
-        private const val RESULT_NOTIFICATION_ID = 1002
         private const val SAMPLE_RATE = 16000
         private const val RECORD_SECONDS = 5
         private const val DB_THRESHOLD = 55.0

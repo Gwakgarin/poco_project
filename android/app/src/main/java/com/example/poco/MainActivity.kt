@@ -11,6 +11,8 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -80,6 +82,9 @@ fun PocoScreen() {
     var currentPeak by remember { mutableStateOf<Int?>(null) }
     val scope = rememberCoroutineScope()
     val context = androidx.compose.ui.platform.LocalContext.current
+    val visibleEventList = eventList
+        .sortedByDescending { it.id }
+        .take(50)
 
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
@@ -103,7 +108,11 @@ fun PocoScreen() {
                     return
                 }
 
-                val label = intent.getStringExtra(AudioMonitorService.EXTRA_LABEL) ?: "unknown"
+                if (!intent.hasExtra(AudioMonitorService.EXTRA_LABEL)) {
+                    return
+                }
+
+                val label = intent.getStringExtra(AudioMonitorService.EXTRA_LABEL) ?: return
                 val score = intent.getFloatExtra(AudioMonitorService.EXTRA_SCORE, 0f)
                 val wavPath = intent.getStringExtra(AudioMonitorService.EXTRA_WAV_PATH).orEmpty()
                 monitorStatus = "마이크 감시 중"
@@ -130,12 +139,13 @@ fun PocoScreen() {
         }
     }
 
-    Column(
+    LazyColumn(
         modifier = Modifier
             .fillMaxSize()
             .padding(24.dp),
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
+        item {
         Text("POCO 소리 감지", fontSize = 28.sp)
 
         Spacer(modifier = Modifier.height(28.dp))
@@ -162,11 +172,14 @@ fun PocoScreen() {
         Text("조회된 소리 이벤트", fontSize = 20.sp)
 
         Spacer(modifier = Modifier.height(12.dp))
+        }
 
-        if (eventList.isEmpty()) {
-            Text("아직 조회된 이벤트 없음")
+        if (visibleEventList.isEmpty()) {
+            item {
+                Text("아직 조회된 이벤트 없음")
+            }
         } else {
-            eventList.forEachIndexed { index, event ->
+            itemsIndexed(visibleEventList) { index, event ->
                 Text(
                     text = "${index + 1}. ${event.predLabel} / ${event.predScore} / ${event.startSec}~${event.endSec}초",
                     fontSize = 16.sp
@@ -174,24 +187,26 @@ fun PocoScreen() {
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        item {
+            Spacer(modifier = Modifier.height(32.dp))
 
-        Button(
-            onClick = {
-                scope.launch {
-                    serverStatus = "서버 조회 중..."
+            Button(
+                onClick = {
+                    scope.launch {
+                        serverStatus = "서버 조회 중..."
 
-                    try {
-                        val result = ServerApiClient.api.getSoundEvents()
-                        eventList = result
-                        serverStatus = "서버 조회 성공"
-                    } catch (e: Exception) {
-                        serverStatus = "서버 조회 실패: ${e.message ?: e::class.java.simpleName}"
+                        try {
+                            val result = ServerApiClient.api.getSoundEvents()
+                            eventList = result
+                            serverStatus = "서버 조회 성공"
+                        } catch (e: Exception) {
+                            serverStatus = "서버 조회 실패: ${e.message ?: e::class.java.simpleName}"
+                        }
                     }
                 }
+            ) {
+                Text("서버 소리 이벤트 조회")
             }
-        ) {
-            Text("서버 소리 이벤트 조회")
         }
     }
 }

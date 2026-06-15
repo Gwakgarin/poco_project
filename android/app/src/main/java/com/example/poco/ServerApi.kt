@@ -6,8 +6,6 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.GET
 import retrofit2.http.POST
-import java.util.concurrent.TimeUnit
-import okhttp3.OkHttpClient
 
 data class SoundEventRequest(
     val rawFile: String,
@@ -22,24 +20,15 @@ data class SoundEventRequest(
 
 interface SoundEventApi {
     @POST("/api/sound-events")
-    fun createSoundEvent(@Body request: SoundEventRequest): Call<SoundEventResponse>
+    fun createSoundEvent(@Body request: SoundEventRequest): Call<Void>
 
     @GET("/api/sound-events")
     suspend fun getSoundEvents(): List<SoundEventResponse>
 }
 
 object ServerApiClient {
-    private const val BASE_URL = "http://10.208.2.55:8080/"
-
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(3, TimeUnit.SECONDS)
-        .readTimeout(5, TimeUnit.SECONDS)
-        .writeTimeout(5, TimeUnit.SECONDS)
-        .build()
-
     private val retrofit = Retrofit.Builder()
-        .baseUrl(BASE_URL)
-        .client(client)
+        .baseUrl("http://127.0.0.1:8080/")
         .addConverterFactory(GsonConverterFactory.create())
         .build()
 
