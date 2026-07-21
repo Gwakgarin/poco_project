@@ -15,6 +15,11 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
+import com.example.poco.location.HomeState
+import com.example.poco.location.LocationSample
+import com.example.poco.location.LocationStore
+import com.example.poco.location.LocationTracker
+import com.example.poco.location.LocationUploadManager
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -26,12 +31,33 @@ class AudioMonitorService : Service() {
     @Volatile
     private var running = false
     private var monitorThread: Thread? = null
+    private lateinit var locationStore: LocationStore
+    private lateinit var locationTracker: LocationTracker
+    private lateinit var locationUploadManager: LocationUploadManager
+    private val dangerPolicy = DangerPolicy()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
+        locationStore = LocationStore(this)
+        locationUploadManager = LocationUploadManager(locationStore.deviceId()) { status ->
+            sendLocationStatus(status)
+        }
+        locationTracker = LocationTracker(
+            context = this,
+            store = locationStore,
+            onLocation = { sample, stateResult ->
+                val state = stateResult?.state ?: HomeState.UNKNOWN
+                locationUploadManager.upload(sample, state)
+                sendLocation(sample, state, stateResult?.distanceMeters, stateResult?.isCertain)
+            },
+            onError = { error ->
+                Log.e("POCO", "Location tracking failed", error)
+                sendLocationStatus("Location failed: ${error.message ?: error::class.java.simpleName}")
+            }
+        )
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -43,6 +69,8 @@ class AudioMonitorService : Service() {
             stopSelf(startId)
             return START_NOT_STICKY
         }
+
+        locationTracker.start()
 
         if (monitorThread?.isAlive == true) {
             return START_STICKY
@@ -62,6 +90,8 @@ class AudioMonitorService : Service() {
     override fun onDestroy() {
         running = false
         monitorThread?.interrupt()
+        locationTracker.stop()
+        locationUploadManager.close()
         super.onDestroy()
     }
 
@@ -194,12 +224,19 @@ class AudioMonitorService : Service() {
 
         sendResult(result, wavFile, "분류 완료: 서버 저장 전")
 
-        val serverStatus = try {
+        val soundServerStatus = try {
             postSoundEvent(result, wavFile)
         } catch (t: Throwable) {
             Log.e("POCO", "AudioMonitorService server save failed", t)
             "Server save failed: ${t.message ?: t::class.java.simpleName}"
         }
+        val dangerStatus = try {
+            postDangerAlertIfNeeded(result.label)
+        } catch (t: Throwable) {
+            Log.e("POCO", "Danger alert save failed", t)
+            "Danger alert failed: ${t.message ?: t::class.java.simpleName}"
+        }
+        val serverStatus = listOfNotNull(soundServerStatus, dangerStatus).joinToString(" / ")
         Log.d("POCO", "AudioMonitorService $serverStatus")
 
         sendResult(result, wavFile, serverStatus)
@@ -245,6 +282,30 @@ class AudioMonitorService : Service() {
         }
     }
 
+    private fun postDangerAlertIfNeeded(label: String): String? {
+        val latest = locationStore.getLatest()
+        val state = latest?.second ?: HomeState.UNKNOWN
+        val detectedAt = System.currentTimeMillis()
+        val decision = dangerPolicy.evaluate(label, state, detectedAt) ?: return null
+        val sample = latest?.first
+        val request = DangerAlertRequest(
+            deviceId = locationStore.deviceId(),
+            soundLabel = label,
+            level = decision.level.name,
+            reason = decision.reason,
+            homeState = state.name,
+            latitude = sample?.latitude,
+            longitude = sample?.longitude,
+            detectedAtEpochMs = detectedAt
+        )
+        val response = ServerApiClient.api.createDangerAlert(request).execute()
+        return if (response.isSuccessful) {
+            "Danger alert saved: HTTP ${response.code()}"
+        } else {
+            "Danger alert failed: HTTP ${response.code()}"
+        }
+    }
+
     private fun sendResult(
         result: ClassificationResult,
         wavFile: File,
@@ -280,18 +341,52 @@ class AudioMonitorService : Service() {
         sendBroadcast(intent)
     }
 
+    private fun sendLocation(
+        sample: LocationSample,
+        state: HomeState,
+        distanceMeters: Double?,
+        isCertain: Boolean?
+    ) {
+        val intent = Intent(ACTION_RESULT).setPackage(packageName)
+            .putExtra(EXTRA_LATITUDE, sample.latitude)
+            .putExtra(EXTRA_LONGITUDE, sample.longitude)
+            .putExtra(EXTRA_ACCURACY_METERS, sample.accuracyMeters)
+            .putExtra(EXTRA_LOCATION_TIME, sample.measuredAtEpochMs)
+            .putExtra(EXTRA_HOME_STATE, state.name)
+        distanceMeters?.let { intent.putExtra(EXTRA_HOME_DISTANCE_METERS, it) }
+        isCertain?.let { intent.putExtra(EXTRA_HOME_STATE_CERTAIN, it) }
+        sendBroadcast(intent)
+    }
+
+    private fun sendLocationStatus(status: String) {
+        sendBroadcast(
+            Intent(ACTION_RESULT).setPackage(packageName)
+                .putExtra(EXTRA_LOCATION_SERVER_STATUS, status)
+        )
+    }
+
     private fun startAsForeground(title: String, text: String) {
         val foregroundNotification = notification(title, text).setOngoing(true).build()
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            var foregroundTypes = ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+            if (hasLocationPermission()) {
+                foregroundTypes = foregroundTypes or ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION
+            }
             startForeground(
                 NOTIFICATION_ID,
                 foregroundNotification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                foregroundTypes
             )
         } else {
             startForeground(NOTIFICATION_ID, foregroundNotification)
         }
     }
+
+    private fun hasLocationPermission(): Boolean =
+        ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED ||
+            ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_COARSE_LOCATION) ==
+            PackageManager.PERMISSION_GRANTED
 
     private fun updateNotification(title: String, text: String) {
         val manager = getSystemService(NotificationManager::class.java)
@@ -336,6 +431,14 @@ class AudioMonitorService : Service() {
         const val EXTRA_ERROR = "error"
         const val EXTRA_DB = "db"
         const val EXTRA_PEAK = "peak"
+        const val EXTRA_LATITUDE = "latitude"
+        const val EXTRA_LONGITUDE = "longitude"
+        const val EXTRA_ACCURACY_METERS = "accuracy_meters"
+        const val EXTRA_LOCATION_TIME = "location_time"
+        const val EXTRA_HOME_STATE = "home_state"
+        const val EXTRA_HOME_DISTANCE_METERS = "home_distance_meters"
+        const val EXTRA_HOME_STATE_CERTAIN = "home_state_certain"
+        const val EXTRA_LOCATION_SERVER_STATUS = "location_server_status"
 
         private const val CHANNEL_ID = "poco_audio_monitor"
         private const val NOTIFICATION_ID = 1001

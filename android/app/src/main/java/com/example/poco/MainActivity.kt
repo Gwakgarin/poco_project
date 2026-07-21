@@ -19,6 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.example.poco.location.GeoPoint
+import com.example.poco.location.HomeState
+import com.example.poco.location.HomeZone
+import com.example.poco.location.LocationSample
+import com.example.poco.location.LocationStore
 import kotlinx.coroutines.launch
 
 data class SoundEventResponse(
@@ -37,8 +42,20 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val missingPermissions = mutableListOf<String>()
         if (checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), REQUEST_RECORD_AUDIO)
+            missingPermissions += Manifest.permission.RECORD_AUDIO
+        }
+        val hasLocationPermission =
+            checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED ||
+                checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!hasLocationPermission) {
+            missingPermissions += Manifest.permission.ACCESS_COARSE_LOCATION
+            missingPermissions += Manifest.permission.ACCESS_FINE_LOCATION
+        }
+
+        if (missingPermissions.isNotEmpty()) {
+            requestPermissions(missingPermissions.toTypedArray(), REQUEST_MONITOR_PERMISSIONS)
         } else {
             startAudioMonitorService()
         }
@@ -54,10 +71,8 @@ class MainActivity : ComponentActivity() {
         grantResults: IntArray
     ) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        if (requestCode == REQUEST_RECORD_AUDIO &&
-            grantResults.isNotEmpty() &&
-            grantResults[0] == PackageManager.PERMISSION_GRANTED
-        ) {
+        if (requestCode == REQUEST_MONITOR_PERMISSIONS &&
+            checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
             startAudioMonitorService()
         }
     }
@@ -68,20 +83,28 @@ class MainActivity : ComponentActivity() {
     }
 
     private companion object {
-        const val REQUEST_RECORD_AUDIO = 1
+        const val REQUEST_MONITOR_PERMISSIONS = 1
     }
 }
 
 @Composable
 fun PocoScreen() {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val locationStore = remember(context) { LocationStore(context) }
+    val initialLocation = remember { locationStore.getLatest() }
     var eventList by remember { mutableStateOf(listOf<SoundEventResponse>()) }
     var monitorStatus by remember { mutableStateOf("마이크 감시 중") }
     var lastResult by remember { mutableStateOf("아직 분류된 소리 없음") }
     var serverStatus by remember { mutableStateOf("서버 대기 중") }
     var currentDb by remember { mutableStateOf<Double?>(null) }
     var currentPeak by remember { mutableStateOf<Int?>(null) }
+    var latestLocation by remember { mutableStateOf(initialLocation?.first) }
+    var homeState by remember { mutableStateOf(initialLocation?.second ?: HomeState.UNKNOWN) }
+    var homeDistanceMeters by remember { mutableStateOf<Double?>(null) }
+    var homeStateCertain by remember { mutableStateOf<Boolean?>(null) }
+    var locationServerStatus by remember { mutableStateOf("위치 서버 대기 중") }
+    var homeZone by remember { mutableStateOf(locationStore.getHomeZone()) }
     val scope = rememberCoroutineScope()
-    val context = androidx.compose.ui.platform.LocalContext.current
     val visibleEventList = eventList
         .sortedByDescending { it.id }
         .take(50)
@@ -99,6 +122,33 @@ fun PocoScreen() {
                 }
                 if (intent.hasExtra(AudioMonitorService.EXTRA_PEAK)) {
                     currentPeak = intent.getIntExtra(AudioMonitorService.EXTRA_PEAK, 0)
+                }
+                if (intent.hasExtra(AudioMonitorService.EXTRA_LATITUDE)) {
+                    latestLocation = LocationSample(
+                        latitude = intent.getDoubleExtra(AudioMonitorService.EXTRA_LATITUDE, 0.0),
+                        longitude = intent.getDoubleExtra(AudioMonitorService.EXTRA_LONGITUDE, 0.0),
+                        accuracyMeters = intent.getFloatExtra(AudioMonitorService.EXTRA_ACCURACY_METERS, 0f),
+                        measuredAtEpochMs = intent.getLongExtra(AudioMonitorService.EXTRA_LOCATION_TIME, 0L)
+                    )
+                    homeState = runCatching {
+                        HomeState.valueOf(
+                            intent.getStringExtra(AudioMonitorService.EXTRA_HOME_STATE)
+                                ?: HomeState.UNKNOWN.name
+                        )
+                    }.getOrDefault(HomeState.UNKNOWN)
+                    homeDistanceMeters = if (intent.hasExtra(AudioMonitorService.EXTRA_HOME_DISTANCE_METERS)) {
+                        intent.getDoubleExtra(AudioMonitorService.EXTRA_HOME_DISTANCE_METERS, 0.0)
+                    } else {
+                        null
+                    }
+                    homeStateCertain = if (intent.hasExtra(AudioMonitorService.EXTRA_HOME_STATE_CERTAIN)) {
+                        intent.getBooleanExtra(AudioMonitorService.EXTRA_HOME_STATE_CERTAIN, false)
+                    } else {
+                        null
+                    }
+                }
+                intent.getStringExtra(AudioMonitorService.EXTRA_LOCATION_SERVER_STATUS)?.let {
+                    locationServerStatus = it
                 }
 
                 val error = intent.getStringExtra(AudioMonitorService.EXTRA_ERROR)
@@ -166,6 +216,60 @@ fun PocoScreen() {
 
         Text("서버 상태", fontSize = 20.sp)
         Text(serverStatus, fontSize = 16.sp)
+
+        Spacer(modifier = Modifier.height(28.dp))
+
+        Text("GPS / Home Zone", fontSize = 20.sp)
+        Text("상태: ${homeState.name}", fontSize = 22.sp)
+        Text(
+            text = latestLocation?.let {
+                "위치: %.6f, %.6f / 정확도 ±%.1fm".format(
+                    it.latitude,
+                    it.longitude,
+                    it.accuracyMeters
+                )
+            } ?: "아직 수집된 위치 없음",
+            fontSize = 16.sp
+        )
+        homeDistanceMeters?.let { distance ->
+            Text(
+                "집에서 %.1fm / 판정 ${if (homeStateCertain == true) "확실" else "경계(기존 상태 유지)"}",
+                fontSize = 16.sp
+            )
+        }
+        Text(
+            homeZone?.let { "Home Zone: 반경 ${it.radiusMeters.toInt()}m 설정됨" }
+                ?: "Home Zone이 설정되지 않음",
+            fontSize = 16.sp
+        )
+        Text(locationServerStatus, fontSize = 14.sp)
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Button(
+            enabled = latestLocation != null,
+            onClick = {
+                latestLocation?.let { sample ->
+                    val newHomeZone = HomeZone(
+                        center = GeoPoint(sample.latitude, sample.longitude),
+                        radiusMeters = HomeZone.DEFAULT_RADIUS_METERS
+                    )
+                    locationStore.saveHomeZone(newHomeZone)
+                    homeZone = newHomeZone
+                    homeDistanceMeters = 0.0
+                    val newState = if (sample.accuracyMeters <= newHomeZone.radiusMeters) {
+                        HomeState.HOME
+                    } else {
+                        HomeState.UNKNOWN
+                    }
+                    homeState = newState
+                    locationStore.saveLatest(sample, newState)
+                    homeStateCertain = sample.accuracyMeters <= newHomeZone.radiusMeters
+                }
+            }
+        ) {
+            Text("현재 위치를 집으로 저장 (100m)")
+        }
 
         Spacer(modifier = Modifier.height(28.dp))
 
