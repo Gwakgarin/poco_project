@@ -41,6 +41,9 @@ import com.example.poco.ui.theme.PocoTextPrimary
 fun GuardianSettingsScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
+    onOpenUserLinkInfo: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenLinkNewUser: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
@@ -56,9 +59,9 @@ fun GuardianSettingsScreen(
                         .padding(horizontal = 24.dp)
                         .padding(top = 16.dp, bottom = 16.dp)
                 )
-                GuardianSettingsRow(icon = Icons.Filled.Person, label = "사용자 연동 정보")
-                GuardianSettingsRow(icon = Icons.Filled.NotificationsActive, label = "알림 수신 설정")
-                GuardianSettingsRow(icon = Icons.Filled.Link, label = "새 사용자 연동하기")
+                GuardianSettingsRow(icon = Icons.Filled.Person, label = "사용자 연동 정보", onClick = onOpenUserLinkInfo)
+                GuardianSettingsRow(icon = Icons.Filled.NotificationsActive, label = "알림 수신 설정", onClick = onOpenNotificationSettings)
+                GuardianSettingsRow(icon = Icons.Filled.Link, label = "새 사용자 연동하기", onClick = onOpenLinkNewUser)
             }
             GuardianBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
         }
@@ -66,11 +69,11 @@ fun GuardianSettingsScreen(
 }
 
 @Composable
-private fun GuardianSettingsRow(icon: ImageVector, label: String) {
+private fun GuardianSettingsRow(icon: ImageVector, label: String, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {}
+            .clickable(onClick = onClick)
             .padding(horizontal = 24.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -86,6 +89,12 @@ private fun GuardianSettingsRow(icon: ImageVector, label: String) {
 @Composable
 private fun GuardianSettingsScreenPreview() {
     POCOTheme {
-        GuardianSettingsScreen(selectedTab = GuardianTab.SETTINGS, onTabSelected = {})
+        GuardianSettingsScreen(
+            selectedTab = GuardianTab.SETTINGS,
+            onTabSelected = {},
+            onOpenUserLinkInfo = {},
+            onOpenNotificationSettings = {},
+            onOpenLinkNewUser = {}
+        )
     }
 }

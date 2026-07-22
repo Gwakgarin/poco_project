@@ -23,12 +23,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.components.PrimaryButton
 import com.example.poco.ui.theme.POCOTheme
 import com.example.poco.ui.theme.PocoCardBackground
@@ -41,29 +44,34 @@ import kotlin.random.Random
 @Composable
 fun QrShowScreen(
     onDone: () -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "보호자 앱에서\n이 코드를 스캔해주세요",
-                color = PocoTextPrimary,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            QrPlaceholder(seed = 42)
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(text = "연동 코드: 7QK2-90LX", color = PocoTextMuted, fontSize = 14.sp)
-            Spacer(modifier = Modifier.height(40.dp))
-            PrimaryButton(text = "연동 완료", onClick = onDone)
+        Column(modifier = Modifier.fillMaxSize()) {
+            PocoTopBar(title = "", onBack = onBack)
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = "보호자 앱에서\n이 코드를 스캔해주세요",
+                    color = PocoTextPrimary,
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                QrPlaceholder(seed = 42)
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(text = "연동 코드: 7QK2-90LX", color = PocoTextMuted, fontSize = 14.sp)
+                Spacer(modifier = Modifier.height(40.dp))
+                PrimaryButton(text = "연동 완료", onClick = onDone)
+            }
         }
     }
 }
@@ -72,39 +80,44 @@ fun QrShowScreen(
 @Composable
 fun QrScanScreen(
     onScanned: () -> Unit,
+    onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.Black) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Text(
-                text = "사용자 기기의 코드를\n화면 안에 맞춰주세요",
-                color = Color.White,
-                fontSize = 18.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            Box(
+        Column(modifier = Modifier.fillMaxSize()) {
+            PocoTopBar(title = "", onBack = onBack, contentColor = Color.White)
+            Column(
                 modifier = Modifier
-                    .size(240.dp)
-                    .border(2.dp, PocoGreen, RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .padding(horizontal = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    imageVector = Icons.Filled.QrCodeScanner,
-                    contentDescription = null,
-                    tint = PocoGreen,
-                    modifier = Modifier.size(64.dp)
+                Text(
+                    text = "사용자 기기의 코드를\n화면 안에 맞춰주세요",
+                    color = Color.White,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    textAlign = TextAlign.Center
                 )
+                Spacer(modifier = Modifier.height(32.dp))
+                Box(
+                    modifier = Modifier
+                        .size(240.dp)
+                        .border(2.dp, PocoGreen, RoundedCornerShape(16.dp)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.QrCodeScanner,
+                        contentDescription = null,
+                        tint = PocoGreen,
+                        modifier = Modifier.size(64.dp)
+                    )
+                }
+                Spacer(modifier = Modifier.height(40.dp))
+                PrimaryButton(text = "스캔 완료 (테스트)", onClick = onScanned)
             }
-            Spacer(modifier = Modifier.height(40.dp))
-            PrimaryButton(text = "스캔 완료 (테스트)", onClick = onScanned)
         }
     }
 }
@@ -112,8 +125,20 @@ fun QrScanScreen(
 @Composable
 private fun QrPlaceholder(seed: Int) {
     val random = remember(seed) { Random(seed) }
-    val gridSize = 12
-    val cells = remember(seed) { List(gridSize * gridSize) { random.nextFloat() > 0.55f } }
+    val gridSize = 16
+    val finderSize = 4
+    val isFinderCell = { row: Int, col: Int ->
+        (row < finderSize && col < finderSize) ||
+            (row < finderSize && col >= gridSize - finderSize) ||
+            (row >= gridSize - finderSize && col < finderSize)
+    }
+    val cells = remember(seed) {
+        List(gridSize * gridSize) { index ->
+            val row = index / gridSize
+            val col = index % gridSize
+            if (isFinderCell(row, col)) false else random.nextFloat() > 0.55f
+        }
+    }
     Box(
         modifier = Modifier
             .size(220.dp)
@@ -123,17 +148,40 @@ private fun QrPlaceholder(seed: Int) {
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cellSize = size.minDimension / gridSize
+
+            fun drawFinderPattern(originRow: Int, originCol: Int) {
+                drawRect(
+                    color = Color.Black,
+                    topLeft = Offset(originCol * cellSize, originRow * cellSize),
+                    size = Size(cellSize * finderSize, cellSize * finderSize)
+                )
+                drawRect(
+                    color = Color.White,
+                    topLeft = Offset((originCol + 0.7f) * cellSize, (originRow + 0.7f) * cellSize),
+                    size = Size(cellSize * (finderSize - 1.4f), cellSize * (finderSize - 1.4f))
+                )
+                drawRect(
+                    color = Color.Black,
+                    topLeft = Offset((originCol + 1.3f) * cellSize, (originRow + 1.3f) * cellSize),
+                    size = Size(cellSize * (finderSize - 2.6f), cellSize * (finderSize - 2.6f))
+                )
+            }
+
             for (row in 0 until gridSize) {
                 for (col in 0 until gridSize) {
                     if (cells[row * gridSize + col]) {
                         drawRect(
                             color = Color.Black,
-                            topLeft = androidx.compose.ui.geometry.Offset(col * cellSize, row * cellSize),
-                            size = Size(cellSize, cellSize)
+                            topLeft = Offset(col * cellSize, row * cellSize),
+                            size = Size(cellSize * 0.9f, cellSize * 0.9f)
                         )
                     }
                 }
             }
+
+            drawFinderPattern(0, 0)
+            drawFinderPattern(0, gridSize - finderSize)
+            drawFinderPattern(gridSize - finderSize, 0)
         }
     }
 }
@@ -141,11 +189,11 @@ private fun QrPlaceholder(seed: Int) {
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)
 @Composable
 private fun QrShowScreenPreview() {
-    POCOTheme { QrShowScreen(onDone = {}) }
+    POCOTheme { QrShowScreen(onDone = {}, onBack = {}) }
 }
 
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)
 @Composable
 private fun QrScanScreenPreview() {
-    POCOTheme { QrScanScreen(onScanned = {}) }
+    POCOTheme { QrScanScreen(onScanned = {}, onBack = {}) }
 }
