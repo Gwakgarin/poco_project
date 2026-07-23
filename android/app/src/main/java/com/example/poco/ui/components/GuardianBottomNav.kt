@@ -13,16 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.QueryStats
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Timeline
-import androidx.compose.material.icons.filled.TrendingUp
+import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Home
 import androidx.compose.material.icons.outlined.Notifications
+import androidx.compose.material.icons.outlined.QueryStats
 import androidx.compose.material.icons.outlined.Settings
-import androidx.compose.material.icons.outlined.Timeline
-import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -39,8 +39,8 @@ import com.example.poco.ui.theme.PocoTextMuted
 
 enum class GuardianTab(val label: String, val filled: ImageVector, val outline: ImageVector) {
     HOME("홈", Icons.Filled.Home, Icons.Outlined.Home),
-    TIMELINE("타임라인", Icons.Filled.Timeline, Icons.Outlined.Timeline),
-    TREND("추이", Icons.Filled.TrendingUp, Icons.Outlined.TrendingUp),
+    TIMELINE("타임라인", Icons.Filled.History, Icons.Outlined.History),
+    TREND("추이", Icons.Filled.QueryStats, Icons.Outlined.QueryStats),
     ALERTS("알림", Icons.Filled.Notifications, Icons.Outlined.Notifications),
     SETTINGS("설정", Icons.Filled.Settings, Icons.Outlined.Settings)
 }
