@@ -48,7 +48,7 @@ fun MicSensitivityScreen(
 
             Column(modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp)) {
                 Text(
-                    text = "감도가 높을수록 작은 소리도 더 잘 감지하지만\n배터리 소모가 늘어날 수 있어요",
+                    text = "감도가 높을수록 작은 소리도 더 잘 감지하지만 배터리 소모가 늘어날 수 있어요",
                     color = PocoTextMuted,
                     fontSize = 14.sp
                 )

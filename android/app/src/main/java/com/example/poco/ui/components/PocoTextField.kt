@@ -32,7 +32,7 @@ fun PocoTextField(
         modifier = modifier,
         visualTransformation = if (isPassword) PasswordVisualTransformation() else VisualTransformation.None,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-        shape = RoundedCornerShape(12.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = PocoGreen,
             unfocusedBorderColor = PocoTextMuted.copy(alpha = 0.4f),

@@ -32,10 +32,12 @@ import com.example.poco.ui.screens.QrShowScreen
 import com.example.poco.ui.screens.RoleSelectScreen
 import com.example.poco.ui.screens.SettingsScreen
 import com.example.poco.ui.screens.SignUpScreen
+import com.example.poco.ui.screens.SplashScreen
 import com.example.poco.ui.screens.UserHomeScreen
 import com.example.poco.ui.screens.UserHomeUiState
 
 object PocoRoutes {
+    const val SPLASH = "splash"
     const val LOGIN = "login"
     const val SIGN_UP = "sign_up"
     const val ROLE_SELECT = "role_select"
@@ -81,13 +83,18 @@ fun PocoNavHost(
 
     NavHost(
         navController = navController,
-        startDestination = PocoRoutes.LOGIN,
+        startDestination = PocoRoutes.SPLASH,
         modifier = modifier,
         enterTransition = { slideInFromRight },
         exitTransition = { slideOutToLeft },
         popEnterTransition = { slideInFromLeft },
         popExitTransition = { slideOutToRight }
     ) {
+        composable(PocoRoutes.SPLASH) {
+            SplashScreen(
+                onTimeout = { navController.navigateTopLevel(PocoRoutes.LOGIN, PocoRoutes.SPLASH) }
+            )
+        }
         composable(PocoRoutes.LOGIN) {
             LoginScreen(
                 onLoginClick = { navController.navigate(PocoRoutes.ROLE_SELECT) },
@@ -124,7 +131,8 @@ fun PocoNavHost(
             UserHomeScreen(
                 uiState = homeUiState,
                 selectedTab = AppTab.HOME,
-                onTabSelected = { tab -> navController.navigateUserTab(tab) }
+                onTabSelected = { tab -> navController.navigateUserTab(tab) },
+                onSosClick = { navController.navigate(PocoRoutes.EMERGENCY_USER) }
             )
         }
         composable(PocoRoutes.USER_ACTIVITY) {

@@ -55,7 +55,7 @@ fun SignUpScreen(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
-                    text = "가입 후 역할(사용자/보호자)을\n선택할 수 있어요",
+                    text = "가입 후 역할(사용자/보호자)을 선택할 수 있어요",
                     color = PocoTextMuted,
                     fontSize = 14.sp
                 )

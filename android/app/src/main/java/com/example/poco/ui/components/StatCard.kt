@@ -30,10 +30,10 @@ fun StatCard(
     backgroundColor: Color = PocoCardBackground
 ) {
     Card(
-        modifier = modifier.height(78.dp),
-        shape = RoundedCornerShape(12.dp),
+        modifier = modifier.height(82.dp),
+        shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier
