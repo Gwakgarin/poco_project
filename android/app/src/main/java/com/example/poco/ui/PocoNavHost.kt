@@ -1,5 +1,8 @@
 package com.example.poco.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -7,6 +10,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,7 +19,9 @@ import com.example.poco.ui.components.AppTab
 import com.example.poco.ui.components.GuardianTab
 import com.example.poco.ui.screens.AccountInfoScreen
 import com.example.poco.ui.screens.ActivityLogScreen
+import com.example.poco.ui.screens.EmergencyDispatchedScreen
 import com.example.poco.ui.screens.EmergencyGuardianScreen
+import com.example.poco.ui.screens.EmergencyLocationScreen
 import com.example.poco.ui.screens.EmergencyUserScreen
 import com.example.poco.ui.screens.GuardianDailyMonitoringScreen
 import com.example.poco.ui.screens.GuardianHomeScreen
@@ -52,6 +58,8 @@ object PocoRoutes {
     const val GUARDIAN_LINK_MANAGEMENT = "guardian_link_management"
     const val EMERGENCY_USER = "emergency_user"
     const val EMERGENCY_GUARDIAN = "emergency_guardian"
+    const val EMERGENCY_LOCATION = "emergency_location"
+    const val EMERGENCY_DISPATCHED = "emergency_dispatched"
     const val GUARDIAN_HOME = "guardian_home"
     const val GUARDIAN_TIMELINE = "guardian_timeline"
     const val GUARDIAN_TREND = "guardian_trend"
@@ -61,6 +69,10 @@ object PocoRoutes {
     const val GUARDIAN_NOTIFICATION_SETTINGS = "guardian_notification_settings"
     const val GUARDIAN_LINK_NEW_USER = "guardian_link_new_user"
 }
+
+// TODO: replace with the linked user's real phone number and last-known location once the backend exposes them.
+private const val LINKED_USER_PHONE_NUMBER = "01000000000"
+private const val LINKED_USER_LAST_LOCATION_QUERY = "37.5665,126.9780"
 
 private fun NavHostController.navigateTopLevel(route: String, popUpToRoute: String) {
     navigate(route) {
@@ -180,10 +192,33 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.EMERGENCY_GUARDIAN) {
+            val context = LocalContext.current
             EmergencyGuardianScreen(
-                onCheckLocation = {},
-                onDispatch = {},
-                onCall = {}
+                onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
+                onDispatch = { navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED) },
+                onCall = {
+                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$LINKED_USER_PHONE_NUMBER")))
+                }
+            )
+        }
+        composable(PocoRoutes.EMERGENCY_LOCATION) {
+            val context = LocalContext.current
+            EmergencyLocationScreen(
+                onBack = { navController.popBackStack() },
+                onOpenInMaps = {
+                    val geoUri = Uri.parse("geo:0,0?q=${Uri.encode(LINKED_USER_LAST_LOCATION_QUERY)}")
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, geoUri))
+                    } catch (e: ActivityNotFoundException) {
+                        val webUri = Uri.parse("https://maps.google.com/?q=${Uri.encode(LINKED_USER_LAST_LOCATION_QUERY)}")
+                        context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
+                    }
+                }
+            )
+        }
+        composable(PocoRoutes.EMERGENCY_DISPATCHED) {
+            EmergencyDispatchedScreen(
+                onDone = { navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.EMERGENCY_GUARDIAN) }
             )
         }
 
