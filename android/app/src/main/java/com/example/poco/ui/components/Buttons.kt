@@ -59,7 +59,8 @@ fun PrimaryButton(
 fun SecondaryButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
     Box(
         modifier = modifier
@@ -67,10 +68,15 @@ fun SecondaryButton(
             .height(52.dp)
             .clip(RoundedCornerShape(26.dp))
             .background(PocoCardBackground)
-            .clickable(onClick = onClick),
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
-        Text(text = text, color = PocoTextMuted, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = text,
+            color = if (enabled) PocoTextMuted else PocoTextMuted.copy(alpha = 0.4f),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
@@ -88,20 +94,22 @@ fun OutlineChipButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    borderColor: Color = PocoTextMuted
+    borderColor: Color = PocoTextMuted,
+    enabled: Boolean = true
 ) {
+    val resolvedBorderColor = if (enabled) borderColor else borderColor.copy(alpha = 0.35f)
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(20.dp))
             .background(Color.White)
-            .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(20.dp))
-            .clickable(onClick = onClick)
+            .border(BorderStroke(1.dp, resolvedBorderColor), RoundedCornerShape(20.dp))
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(PaddingValues(horizontal = 16.dp, vertical = 8.dp)),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            color = PocoTextPrimary,
+            color = if (enabled) PocoTextPrimary else PocoTextMuted.copy(alpha = 0.5f),
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium
         )

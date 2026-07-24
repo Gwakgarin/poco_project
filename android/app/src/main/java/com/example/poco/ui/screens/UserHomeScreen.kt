@@ -30,7 +30,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -50,9 +49,12 @@ import com.example.poco.ui.components.AppTab
 import com.example.poco.ui.components.PocoCard
 import com.example.poco.ui.components.StatCard
 import com.example.poco.ui.theme.POCOTheme
+import com.example.poco.ui.theme.PocoCardBackground
 import com.example.poco.ui.theme.PocoDivider
 import com.example.poco.ui.theme.PocoGlowEnd
 import com.example.poco.ui.theme.PocoGlowStart
+import com.example.poco.ui.theme.PocoGreenCardBackground
+import com.example.poco.ui.theme.PocoGreenDark
 import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoStatusGreen
 import com.example.poco.ui.theme.PocoTextMuted
@@ -99,21 +101,10 @@ fun UserHomeScreen(
             ) {
                 Spacer(modifier = Modifier.weight(1f))
 
-                DetectionStatusRow(
+                StatusGlowCircle(
+                    text = uiState.statusLabel,
                     isDetecting = uiState.isDetecting,
-                    label = uiState.detectionLabel
-                )
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                StatusGlowCircle(text = uiState.statusLabel, isDetecting = uiState.isDetecting)
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(
-                    text = uiState.soundLevelLabel,
-                    color = PocoTextMuted,
-                    fontSize = 16.sp
+                    soundLevelLabel = uiState.soundLevelLabel
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -128,17 +119,15 @@ fun UserHomeScreen(
                     HorizontalDivider(color = PocoDivider, thickness = 1.dp)
                     Spacer(modifier = Modifier.height(14.dp))
                     StatusCardRow(uiState = uiState)
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Text(text = uiState.homeStateLabel, color = PocoTextMuted, fontSize = 16.sp)
-                Text(text = uiState.locationSummary, color = PocoTextMuted, fontSize = 13.sp)
-                TextButton(
-                    enabled = uiState.canSaveHome,
-                    onClick = onSaveCurrentLocationAsHome
-                ) {
-                    Text("현재 위치를 집으로 설정")
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HorizontalDivider(color = PocoDivider, thickness = 1.dp)
+                    Spacer(modifier = Modifier.height(14.dp))
+                    HomeLocationRow(
+                        homeStateLabel = uiState.homeStateLabel,
+                        locationSummary = uiState.locationSummary,
+                        canSaveHome = uiState.canSaveHome,
+                        onSaveCurrentLocationAsHome = onSaveCurrentLocationAsHome
+                    )
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
@@ -146,20 +135,6 @@ fun UserHomeScreen(
 
             AppBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
         }
-    }
-}
-
-@Composable
-private fun DetectionStatusRow(isDetecting: Boolean, label: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(16.dp)
-                .clip(CircleShape)
-                .background(if (isDetecting) PocoStatusGreen else PocoTextMuted)
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = label, color = PocoTextMuted, fontSize = 20.sp)
     }
 }
 
@@ -200,7 +175,7 @@ private fun GreetingHeader(userName: String, onSosClick: () -> Unit) {
 }
 
 @Composable
-private fun StatusGlowCircle(text: String, isDetecting: Boolean) {
+private fun StatusGlowCircle(text: String, isDetecting: Boolean, soundLevelLabel: String) {
     val caption = if (isDetecting) "정상적인 생활 소리가\n감지되고 있어요" else "마이크 상태를\n확인해주세요"
 
     Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
@@ -236,6 +211,13 @@ private fun StatusGlowCircle(text: String, isDetecting: Boolean) {
                 )
             }
         }
+        Text(
+            text = soundLevelLabel,
+            color = PocoTextMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Medium,
+            modifier = Modifier.align(Alignment.BottomCenter)
+        )
     }
 }
 
@@ -316,6 +298,48 @@ private fun StatusCardRow(uiState: UserHomeUiState) {
         StatCard(modifier = Modifier.weight(1f), label = "마이크", value = if (uiState.micOn) "ON" else "OFF")
         StatCard(modifier = Modifier.weight(1f), label = "GPS", value = if (uiState.gpsOn) "ON" else "OFF")
         StatCard(modifier = Modifier.weight(1f), label = "배터리", value = "${uiState.batteryPercent}%")
+    }
+}
+
+@Composable
+private fun HomeLocationRow(
+    homeStateLabel: String,
+    locationSummary: String,
+    canSaveHome: Boolean,
+    onSaveCurrentLocationAsHome: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = homeStateLabel, color = PocoTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(text = locationSummary, color = PocoTextMuted, fontSize = 11.sp)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        HomeSyncChip(
+            text = "집으로 설정",
+            enabled = canSaveHome,
+            onClick = onSaveCurrentLocationAsHome
+        )
+    }
+}
+
+@Composable
+private fun HomeSyncChip(text: String, enabled: Boolean, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(if (enabled) PocoGreenCardBackground else PocoCardBackground)
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(horizontal = 10.dp, vertical = 6.dp)
+    ) {
+        Text(
+            text = text,
+            color = if (enabled) PocoGreenDark else PocoTextMuted.copy(alpha = 0.5f),
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
     }
 }
 
