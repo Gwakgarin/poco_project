@@ -7,16 +7,25 @@ import java.io.FileInputStream
 import java.nio.MappedByteBuffer
 import java.nio.channels.FileChannel
 
+data class YamNetOutput(
+    val meanEmbedding: FloatArray,
+    val meanScores: FloatArray
+)
+
 class YamNetEmbedder(context: Context) : AutoCloseable {
     private val interpreter = Interpreter(loadModel(context))
 
-    fun extractMeanEmbedding(waveform: FloatArray): FloatArray {
+    // 기존에 embedding만 쓰던 코드가 있다면 그대로 동작하도록 유지
+    fun extractMeanEmbedding(waveform: FloatArray): FloatArray = extract(waveform).meanEmbedding
+
+    fun extract(waveform: FloatArray): YamNetOutput {
         interpreter.resizeInput(0, intArrayOf(waveform.size))
         interpreter.allocateTensors()
 
         val outputShapes = List(interpreter.outputTensorCount) { index ->
             index to interpreter.getOutputTensor(index).shape()
         }
+
         val embeddingOutput = outputShapes.firstOrNull { (_, shape) ->
             shape.size >= 2 && shape.last() == EMBEDDING_DIM
         } ?: error(
@@ -25,11 +34,19 @@ class YamNetEmbedder(context: Context) : AutoCloseable {
             }"
         )
 
+        val scoresOutput = outputShapes.firstOrNull { (_, shape) ->
+            shape.size >= 2 && shape.last() == SCORE_CLASS_COUNT
+        } ?: error(
+            "YAMNet scores output not found. Shapes: ${
+                outputShapes.joinToString { (index, shape) -> "$index=${shape.contentToString()}" }
+            }"
+        )
+
         Log.d(
             "POCO",
             "YAMNet shapes ${
                 outputShapes.joinToString { (index, shape) -> "$index=${shape.contentToString()}" }
-            }; embeddingOutput=${embeddingOutput.first}"
+            }; embeddingOutput=${embeddingOutput.first}; scoresOutput=${scoresOutput.first}"
         )
 
         val embeddingOutputIndex = embeddingOutput.first
@@ -37,27 +54,45 @@ class YamNetEmbedder(context: Context) : AutoCloseable {
         val frameCount = embeddingShape[0]
         val embeddingDim = embeddingShape[1]
         val embeddings = Array(frameCount) { FloatArray(embeddingDim) }
+
+        val scoresOutputIndex = scoresOutput.first
+        val scoresShape = scoresOutput.second
+        val scoreFrameCount = scoresShape[0]
+        val scoreClassCount = scoresShape[1]
+        val scores = Array(scoreFrameCount) { FloatArray(scoreClassCount) }
+
         val outputs = mutableMapOf<Int, Any>()
         outputShapes.forEach { (index, shape) ->
-            outputs[index] = if (index == embeddingOutputIndex) {
-                embeddings
-            } else {
-                createOutputBuffer(shape)
+            outputs[index] = when (index) {
+                embeddingOutputIndex -> embeddings
+                scoresOutputIndex -> scores
+                else -> createOutputBuffer(shape)
             }
         }
 
         interpreter.runForMultipleInputsOutputs(arrayOf(waveform), outputs)
 
-        val mean = FloatArray(embeddingDim)
+        val meanEmbedding = FloatArray(embeddingDim)
         embeddings.forEach { frame ->
             for (i in frame.indices) {
-                mean[i] += frame[i]
+                meanEmbedding[i] += frame[i]
             }
         }
-        for (i in mean.indices) {
-            mean[i] /= frameCount.coerceAtLeast(1)
+        for (i in meanEmbedding.indices) {
+            meanEmbedding[i] /= frameCount.coerceAtLeast(1)
         }
-        return mean
+
+        val meanScores = FloatArray(scoreClassCount)
+        scores.forEach { frame ->
+            for (i in frame.indices) {
+                meanScores[i] += frame[i]
+            }
+        }
+        for (i in meanScores.indices) {
+            meanScores[i] /= scoreFrameCount.coerceAtLeast(1)
+        }
+
+        return YamNetOutput(meanEmbedding, meanScores)
     }
 
     override fun close() {
@@ -82,7 +117,14 @@ class YamNetEmbedder(context: Context) : AutoCloseable {
             else -> error("Unsupported YAMNet output shape: ${shape.contentToString()}")
         }
 
-    private companion object {
+    companion object {
         const val EMBEDDING_DIM = 1024
+        const val SCORE_CLASS_COUNT = 521
+
+        // yamnet_class_map.csv (공식 배포 파일) 기준 인덱스 - 아래 URL로 직접 확인함
+        // https://raw.githubusercontent.com/tensorflow/models/master/research/audioset/yamnet/yamnet_class_map.csv
+        const val SPEECH_INDEX = 0
+        const val CONVERSATION_INDEX = 2
+        const val TELEVISION_INDEX = 518
     }
 }
