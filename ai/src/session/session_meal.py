@@ -103,7 +103,10 @@ class MealSession:
     def is_confirmed(self) -> bool:
         return self.state == MealState.CONFIRMED
 
-    def to_record(self) -> dict:
+    def to_record(self) -> dict | None:
+        if self.state != MealState.ENDED or self.confirmed_time is None:
+            return None
+
         return {
             "behavior": "meal",
             "start_time": self.start_time,
