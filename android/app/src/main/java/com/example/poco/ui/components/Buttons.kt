@@ -15,6 +15,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -30,15 +31,24 @@ fun PrimaryButton(
     text: String,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    containerColor: Color = PocoGreen
+    containerColor: Color = PocoGreen,
+    enabled: Boolean = true
 ) {
+    val resolvedColor = if (enabled) containerColor else PocoTextMuted.copy(alpha = 0.35f)
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(containerColor)
-            .clickable(onClick = onClick),
+            .height(52.dp)
+            .shadow(
+                elevation = if (enabled) 8.dp else 0.dp,
+                shape = RoundedCornerShape(26.dp),
+                clip = false,
+                ambientColor = resolvedColor.copy(alpha = 0.35f),
+                spotColor = resolvedColor.copy(alpha = 0.35f)
+            )
+            .clip(RoundedCornerShape(26.dp))
+            .background(resolvedColor)
+            .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(text = text, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
@@ -54,8 +64,8 @@ fun SecondaryButton(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp)
-            .clip(RoundedCornerShape(12.dp))
+            .height(52.dp)
+            .clip(RoundedCornerShape(26.dp))
             .background(PocoCardBackground)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center

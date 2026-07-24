@@ -9,6 +9,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
@@ -19,25 +20,37 @@ private val DarkColorScheme = darkColorScheme(
 
 private val LightColorScheme = lightColorScheme(
     primary = PocoGreen,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
     onPrimary = Color.White,
+    primaryContainer = PocoGreenCardBackground,
+    onPrimaryContainer = PocoGreenDark,
+    secondary = PocoNavy,
     onSecondary = Color.White,
+    secondaryContainer = PocoCardBackground,
+    onSecondaryContainer = PocoNavy,
+    tertiary = PocoAmber,
     onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    tertiaryContainer = PocoAmberBackground,
+    onTertiaryContainer = PocoAmber,
+    error = PocoRed,
+    onError = Color.White,
+    errorContainer = PocoRedCardBackground,
+    onErrorContainer = PocoRedDark,
+    background = Color.White,
+    onBackground = PocoTextPrimary,
+    surface = Color.White,
+    onSurface = PocoTextPrimary,
+    surfaceVariant = PocoCardBackground,
+    onSurfaceVariant = PocoTextMuted,
+    outline = PocoDivider,
+    outlineVariant = PocoDivider
 )
 
 @Composable
 fun POCOTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
-    // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    // Keep the POCO brand palette everywhere — Material You dynamic color would otherwise
+    // override it with per-device wallpaper colors on Android 12+.
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {

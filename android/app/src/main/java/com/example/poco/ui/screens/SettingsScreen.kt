@@ -49,6 +49,10 @@ import com.example.poco.ui.theme.PocoTextPrimary
 fun SettingsScreen(
     selectedTab: AppTab,
     onTabSelected: (AppTab) -> Unit,
+    onOpenMicSensitivity: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
+    onOpenGuardianLinkManagement: () -> Unit,
+    onOpenAccountInfo: () -> Unit,
     onOpenGuardianDemo: () -> Unit,
     onOpenEmergencyDemo: () -> Unit,
     modifier: Modifier = Modifier
@@ -71,10 +75,10 @@ fun SettingsScreen(
                         .padding(top = 16.dp, bottom = 16.dp)
                 )
 
-                SettingsRow(icon = Icons.Filled.Mic, label = "마이크 감도")
-                SettingsRow(icon = Icons.Filled.NotificationsActive, label = "알림 설정")
-                SettingsRow(icon = Icons.Filled.Group, label = "보호자 연동 관리")
-                SettingsRow(icon = Icons.Filled.Person, label = "계정 정보")
+                SettingsRow(icon = Icons.Filled.Mic, label = "마이크 감도", onClick = onOpenMicSensitivity)
+                SettingsRow(icon = Icons.Filled.NotificationsActive, label = "알림 설정", onClick = onOpenNotificationSettings)
+                SettingsRow(icon = Icons.Filled.Group, label = "보호자 연동 관리", onClick = onOpenGuardianLinkManagement)
+                SettingsRow(icon = Icons.Filled.Person, label = "계정 정보", onClick = onOpenAccountInfo)
 
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
@@ -130,6 +134,10 @@ private fun SettingsScreenPreview() {
         SettingsScreen(
             selectedTab = AppTab.SETTINGS,
             onTabSelected = {},
+            onOpenMicSensitivity = {},
+            onOpenNotificationSettings = {},
+            onOpenGuardianLinkManagement = {},
+            onOpenAccountInfo = {},
             onOpenGuardianDemo = {},
             onOpenEmergencyDemo = {}
         )

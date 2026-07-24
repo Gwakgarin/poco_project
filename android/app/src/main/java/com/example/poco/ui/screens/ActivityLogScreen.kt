@@ -20,11 +20,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsWalk
-import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.VolumeUp
-import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -53,10 +50,7 @@ data class ActivityLogItem(
 )
 
 private val mockActivityLog = listOf(
-    ActivityLogItem("오전 9:12", "물 마시는 소리 감지", Icons.Filled.LocalDrink),
     ActivityLogItem("오전 8:45", "식사 소리 감지", Icons.Filled.Restaurant),
-    ActivityLogItem("오전 8:20", "걷는 소리 감지", Icons.Filled.DirectionsWalk),
-    ActivityLogItem("오전 7:58", "샤워 소리 감지", Icons.Filled.WaterDrop),
     ActivityLogItem("오전 7:30", "TV 소리 감지", Icons.Filled.VolumeUp)
 )
 
