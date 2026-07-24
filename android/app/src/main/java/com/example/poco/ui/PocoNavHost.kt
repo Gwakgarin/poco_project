@@ -51,6 +51,7 @@ private fun NavHostController.navigateTopLevel(route: String, popUpToRoute: Stri
 @Composable
 fun PocoNavHost(
     homeUiState: UserHomeUiState,
+    onSaveCurrentLocationAsHome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -84,6 +85,7 @@ fun PocoNavHost(
             UserHomeScreen(
                 uiState = homeUiState,
                 selectedTab = AppTab.HOME,
+                onSaveCurrentLocationAsHome = onSaveCurrentLocationAsHome,
                 onTabSelected = { tab -> navController.navigateUserTab(tab) }
             )
         }

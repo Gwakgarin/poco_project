@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -39,16 +40,22 @@ import com.example.poco.ui.theme.PocoTextMuted
 data class UserHomeUiState(
     val isDetecting: Boolean,
     val statusLabel: String,
+    val detectionLabel: String,
+    val soundLevelLabel: String,
     val lastCheckedLabel: String,
     val micOn: Boolean,
     val gpsOn: Boolean,
-    val batteryPercent: Int
+    val batteryPercent: Int,
+    val homeStateLabel: String,
+    val locationSummary: String,
+    val canSaveHome: Boolean
 )
 
 @Composable
 fun UserHomeScreen(
     uiState: UserHomeUiState,
     selectedTab: AppTab = AppTab.HOME,
+    onSaveCurrentLocationAsHome: () -> Unit = {},
     onTabSelected: (AppTab) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
@@ -66,11 +73,22 @@ fun UserHomeScreen(
             ) {
                 Spacer(modifier = Modifier.weight(1f))
 
-                DetectionStatusRow(isDetecting = uiState.isDetecting)
+                DetectionStatusRow(
+                    isDetecting = uiState.isDetecting,
+                    label = uiState.detectionLabel
+                )
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 StatusGlowCircle(text = uiState.statusLabel)
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = uiState.soundLevelLabel,
+                    color = PocoTextMuted,
+                    fontSize = 16.sp
+                )
 
                 Spacer(modifier = Modifier.weight(1f))
 
@@ -84,6 +102,17 @@ fun UserHomeScreen(
 
                 StatusCardRow(uiState = uiState)
 
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(text = uiState.homeStateLabel, color = PocoTextMuted, fontSize = 16.sp)
+                Text(text = uiState.locationSummary, color = PocoTextMuted, fontSize = 13.sp)
+                TextButton(
+                    enabled = uiState.canSaveHome,
+                    onClick = onSaveCurrentLocationAsHome
+                ) {
+                    Text("현재 위치를 집으로 설정")
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
             }
 
@@ -93,7 +122,7 @@ fun UserHomeScreen(
 }
 
 @Composable
-private fun DetectionStatusRow(isDetecting: Boolean) {
+private fun DetectionStatusRow(isDetecting: Boolean, label: String) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
@@ -102,7 +131,7 @@ private fun DetectionStatusRow(isDetecting: Boolean) {
                 .background(if (isDetecting) PocoStatusGreen else PocoTextMuted)
         )
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = "감지 중", color = PocoTextMuted, fontSize = 20.sp)
+        Text(text = label, color = PocoTextMuted, fontSize = 20.sp)
     }
 }
 
@@ -146,11 +175,16 @@ private fun UserHomeScreenPreview() {
         UserHomeScreen(
             uiState = UserHomeUiState(
                 isDetecting = true,
-                statusLabel = "양호",
+                statusLabel = "실제 감지 중",
+                detectionLabel = "실시간 소리 감지 중",
+                soundLevelLabel = "현재 입력 · 41.2 dB",
                 lastCheckedLabel = "마지막 확인 · 오전 9:30",
                 micOn = true,
                 gpsOn = true,
-                batteryPercent = 87
+                batteryPercent = 87,
+                homeStateLabel = "집 안",
+                locationSummary = "정확도 ±12m · 집에서 8m",
+                canSaveHome = true
             )
         )
     }
