@@ -54,7 +54,7 @@ erDiagram
     }
 
     NOTIFICATION_SETTINGS {
-        bigint user_id PK FK
+        bigint user_id PK,FK
         boolean emergency_alert
         boolean activity_anomaly_alert
         boolean low_battery_alert
@@ -63,7 +63,7 @@ erDiagram
 
     DEVICES {
         bigint id PK
-        bigint user_id FK "소유 피보호자, UK(1인 1기기 가정)"
+        bigint user_id FK,UK "소유 피보호자 (1인 1기기 가정)"
         float mic_sensitivity "0.0 ~ 1.0"
         boolean mic_on
         boolean gps_on
@@ -144,7 +144,7 @@ erDiagram
 
 ### devices
 - 현재 스펙상 "최신 위치 1건만 저장"이라고 명시된 부분이 `last_location_*` 컬럼. 외출 이력은 `OUTING_EVENTS`로 별도 추적(스펙 7번 "사전 필요 작업 2" 반영).
-- 1인 1기기 가정 시 `user_id`에 UK 부여, 다중 기기 지원 필요해지면 UK만 제거.
+- 다이어그램에서 `user_id`에 UK를 부여해 1인 1기기를 가정함. 다중 기기 지원이 필요해지면 UK만 제거.
 
 ### sound_events
 - 이미 운영 중인 원본 로그(5초 단위). ERD상 위치만 명확히 함 — `device_id` FK 추가 필요(현재 구현에 없다면 스펙 논의 시 확인 필요).
