@@ -33,6 +33,7 @@ erDiagram
         varchar name
         varchar email UK
         varchar password_hash
+        varchar phone_number "nullable, 긴급상황 context용"
         enum role "USER | GUARDIAN"
         datetime joined_at
     }
@@ -133,6 +134,7 @@ erDiagram
 ### users
 - `role`은 로그인 응답(`{ token, role }`)과 역할 선택 화면에 대응. USER=피보호자(폰 소지), GUARDIAN=보호자.
 - `linkedGuardianCount`(계정 정보 화면)는 저장 컬럼이 아니라 `USER_LINKS`를 `COUNT`한 값 — 프론트에는 숫자로 내려주고 프론트가 "명" 포맷팅.
+- `phone_number`: `GET /api/emergency/context`의 `phoneNumber` 응답 필드를 위해 추가. 회원가입 스펙(`{name, email, password}`)에는 없는 값이라 **어느 화면에서 입력받을지 프론트와 별도 확인 필요** — nullable로 설계해 우선 회원가입 이후 입력 가능하게 둠.
 
 ### user_links (구 "연동")
 - `GET /api/link/list`는 호출자 기준으로 상대방 role을 함께 내려줘야 함 → 응답 시 `user_id = 나`면 상대 role=GUARDIAN, `guardian_id = 나`면 상대 role=USER로 매핑.
@@ -189,3 +191,4 @@ erDiagram
 - `alerts` ↔ 기존 `danger-alerts` 통합 여부.
 - `home-alert-banner` ↔ `alerts` 통합 여부.
 - `home-summary`의 `sleepHours` 타입: float(7.33) / `{hours, minutes}` / 포맷된 문자열 중 결정 필요 → ERD에는 영향 없음(계산 API라 테이블 컬럼 아님)이나, 계산 로직 출력 스키마 결정 시 반영.
+- `daily-stats`의 `avgResponseMinutes`: 무엇에 대한 "반응 시간"인지 정의가 없음. 현재 스키마엔 반응 시간을 기록하는 이벤트가 없어서, 기획 확정 후 필요하면 (예: 알림 발생 → 확인 시각) 컬럼/테이블 추가 필요.
