@@ -20,7 +20,7 @@ public class BehaviorSessionController {
     }
 
     @GetMapping
-    public List<BehaviorSession> getAll() {
-        return behaviorSessionService.findAll();
+    public List<BehaviorSession> getAll(@RequestParam(required = false) String deviceId) {
+        return (deviceId == null) ? behaviorSessionService.findAll() : behaviorSessionService.findByDeviceId(deviceId);
     }
 }
