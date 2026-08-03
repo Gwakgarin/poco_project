@@ -20,6 +20,12 @@ import com.example.poco.location.LocationSample
 import com.example.poco.location.LocationStore
 import com.example.poco.location.LocationTracker
 import com.example.poco.location.LocationUploadManager
+import com.example.poco.session.BehaviorSessionRecord
+import com.example.poco.session.CleaningSession
+import com.example.poco.session.CognitiveSession
+import com.example.poco.session.DishwashingSession
+import com.example.poco.session.LaundrySession
+import com.example.poco.session.MealSession
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -36,12 +42,28 @@ class AudioMonitorService : Service() {
     private lateinit var locationUploadManager: LocationUploadManager
     private val dangerPolicy = DangerPolicy()
 
+    // 세션 상태머신 (세탁/청소/설거지/식사/인지). 설거지는 식사 세션을 참조해서 종료 트리거를 걸 수 있다.
+    private val mealSession = MealSession()
+    private val dishwashingSession = DishwashingSession(mealSession = mealSession)
+    private val laundrySession = LaundrySession()
+    private val cleaningSession = CleaningSession()
+    private val cognitiveSession = CognitiveSession()
+
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         locationStore = LocationStore(this)
+
+        // 세션이 확정 종료될 때마다 서버에 저장
+        val onSessionClose: (BehaviorSessionRecord) -> Unit = { record -> postBehaviorSession(record) }
+        mealSession.onClose = onSessionClose
+        dishwashingSession.onClose = onSessionClose
+        laundrySession.onClose = onSessionClose
+        cleaningSession.onClose = onSessionClose
+        cognitiveSession.onClose = onSessionClose
+
         locationUploadManager = LocationUploadManager(locationStore.deviceId()) { status ->
             sendLocationStatus(status)
         }
@@ -234,6 +256,14 @@ class AudioMonitorService : Service() {
         )
         val isCognitive = cognitiveScore >= COGNITIVE_THRESHOLD
 
+        // 세션 상태머신에 이 세그먼트의 감지 결과를 흘려보낸다 (식사/청소/세탁/설거지는 라벨 기준, 인지는 별도 점수 기준).
+        val now = System.currentTimeMillis()
+        mealSession.processEvent(result.label, now)
+        dishwashingSession.processEvent(result.label, now)
+        laundrySession.processEvent(result.label, now)
+        cleaningSession.processEvent(result.label, now)
+        cognitiveSession.processEvent(isCognitive, now)
+
         Log.d(
             "POCO",
             "AudioMonitorService classification result=${result.label} score=${result.score} " +
@@ -324,6 +354,24 @@ class AudioMonitorService : Service() {
             "Danger alert saved: HTTP ${response.code()}"
         } else {
             "Danger alert failed: HTTP ${response.code()}"
+        }
+    }
+
+    /** 세션이 확정 종료됐을 때(onClose 콜백) 서버에 저장한다. 실패해도 앱 흐름은 계속되게 조용히 로그만 남긴다. */
+    private fun postBehaviorSession(record: BehaviorSessionRecord) {
+        try {
+            val request = BehaviorSessionRequest(
+                deviceId = locationStore.deviceId(),
+                behavior = record.behavior,
+                startTime = record.startTime,
+                confirmedTime = record.confirmedTime,
+                endTime = record.endTime,
+                endReason = record.endReason
+            )
+            val response = ServerApiClient.api.createBehaviorSession(request).execute()
+            Log.d("POCO", "BehaviorSession(${record.behavior}) saved: HTTP ${response.code()}")
+        } catch (t: Throwable) {
+            Log.e("POCO", "BehaviorSession save failed", t)
         }
     }
 
