@@ -48,6 +48,7 @@ class AudioMonitorService : Service() {
     private val laundrySession = LaundrySession()
     private val cleaningSession = CleaningSession()
     private val cognitiveSession = CognitiveSession()
+    private lateinit var sleepDetector: SleepDetector
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -63,6 +64,10 @@ class AudioMonitorService : Service() {
         laundrySession.onClose = onSessionClose
         cleaningSession.onClose = onSessionClose
         cognitiveSession.onClose = onSessionClose
+
+        // SLEEP/WAKE가 확정될 때만 서버에 전송 (오탐으로 폐기된 WAKE_CANDIDATE는 전송 안 함)
+        sleepDetector = SleepDetector(this)
+        sleepDetector.onConfirmed = { event -> postSleepWakeEvent(event) }
 
         locationUploadManager = LocationUploadManager(locationStore.deviceId()) { status ->
             sendLocationStatus(status)
@@ -93,6 +98,7 @@ class AudioMonitorService : Service() {
         }
 
         locationTracker.start()
+        sleepDetector.start()
 
         if (monitorThread?.isAlive == true) {
             return START_STICKY
@@ -114,6 +120,7 @@ class AudioMonitorService : Service() {
         monitorThread?.interrupt()
         locationTracker.stop()
         locationUploadManager.close()
+        sleepDetector.stop()
         super.onDestroy()
     }
 
@@ -263,6 +270,7 @@ class AudioMonitorService : Service() {
         laundrySession.processEvent(result.label, now)
         cleaningSession.processEvent(result.label, now)
         cognitiveSession.processEvent(isCognitive, now)
+        sleepDetector.onSoundEvent(result.label, now)
 
         Log.d(
             "POCO",
@@ -372,6 +380,21 @@ class AudioMonitorService : Service() {
             Log.d("POCO", "BehaviorSession(${record.behavior}) saved: HTTP ${response.code()}")
         } catch (t: Throwable) {
             Log.e("POCO", "BehaviorSession save failed", t)
+        }
+    }
+
+    /** 취침/기상 상태머신이 SLEEP 또는 WAKE를 확정했을 때(onConfirmed 콜백)만 서버에 저장한다. */
+    private fun postSleepWakeEvent(event: SleepWakeEvent) {
+        try {
+            val request = SleepWakeEventRequest(
+                deviceId = locationStore.deviceId(),
+                eventType = event.type,
+                timestamp = event.timestamp
+            )
+            val response = ServerApiClient.api.createSleepWakeEvent(request).execute()
+            Log.d("POCO", "SleepWakeEvent(${event.type}) saved: HTTP ${response.code()}")
+        } catch (t: Throwable) {
+            Log.e("POCO", "SleepWakeEvent save failed", t)
         }
     }
 

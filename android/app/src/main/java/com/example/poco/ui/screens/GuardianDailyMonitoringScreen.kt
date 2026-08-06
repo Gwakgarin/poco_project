@@ -64,7 +64,8 @@ fun GuardianDailyMonitoringScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
     modifier: Modifier = Modifier,
-    timeline: List<TimelineEntry> = mockTimeline
+    timeline: List<TimelineEntry> = mockTimeline,
+    sleepDurationLabel: String = "-"
 ) {
     val riskCount = timeline.count { it.isRisk }
 
@@ -103,7 +104,7 @@ fun GuardianDailyMonitoringScreen(
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     StatCard(modifier = Modifier.weight(1f), label = "총 활동", value = "18회")
-                    StatCard(modifier = Modifier.weight(1f), label = "평균 반응", value = "2분")
+                    StatCard(modifier = Modifier.weight(1f), label = "수면 시간", value = sleepDurationLabel)
                     StatCard(
                         modifier = Modifier.weight(1f),
                         label = "이상 신호",

@@ -60,15 +60,8 @@ private data class ActivitySummaryStat(
     val valueColor: Color
 )
 
-private val homeActivitySummary = listOf(
-    ActivitySummaryStat(Icons.Filled.Restaurant, "식사 횟수", "3회", PocoTextPrimary),
-    ActivitySummaryStat(Icons.Filled.DirectionsWalk, "외출 여부", "다녀옴", PocoGreen),
-    ActivitySummaryStat(Icons.Filled.Psychology, "인지 활동 시간", "42분", PocoTextPrimary),
-    ActivitySummaryStat(Icons.Filled.Bedtime, "수면 시간", "7시간 20분", PocoTextPrimary)
-)
-
-private val homeTimeline = listOf(
-    TimelineEntry("오전 7:15", "기상 · 활동 시작"),
+// 식사/외출/무활동 항목은 아직 이 화면에 실데이터 연동이 안 된 mock. 기상/수면 시간만 실데이터로 대체된다.
+private val homeTimelineRest = listOf(
     TimelineEntry("오전 7:40", "아침 식사 소리 감지"),
     TimelineEntry("오전 9:20", "외출 감지 (GPS 이동 시작)"),
     TimelineEntry("오전 11:05", "귀가 감지 (GPS 이동 종료)"),
@@ -81,8 +74,18 @@ fun GuardianHomeScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
     onOpenNotifications: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    sleepDurationLabel: String = "7시간 20분",
+    wakeTimelineEntry: TimelineEntry = TimelineEntry("오전 7:15", "기상 · 활동 시작")
 ) {
+    val homeActivitySummary = listOf(
+        ActivitySummaryStat(Icons.Filled.Restaurant, "식사 횟수", "3회", PocoTextPrimary),
+        ActivitySummaryStat(Icons.Filled.DirectionsWalk, "외출 여부", "다녀옴", PocoGreen),
+        ActivitySummaryStat(Icons.Filled.Psychology, "인지 활동 시간", "42분", PocoTextPrimary),
+        ActivitySummaryStat(Icons.Filled.Bedtime, "수면 시간", sleepDurationLabel, PocoTextPrimary)
+    )
+    val homeTimeline = listOf(wakeTimelineEntry) + homeTimelineRest
+
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.weight(1f)) {

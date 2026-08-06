@@ -91,6 +91,21 @@ data class BehaviorSessionRequest(
     val endReason: String? = null
 )
 
+/** 취침/기상 상태머신이 SLEEP 또는 WAKE를 확정했을 때만 서버로 보내는 이벤트. */
+data class SleepWakeEventRequest(
+    val deviceId: String,
+    val eventType: String, // "sleep" | "wake"
+    val timestamp: Long
+)
+
+/** 서버에 저장된 취침/기상 확정 이벤트를 조회할 때 받는 응답 데이터. */
+data class SleepWakeEventResponse(
+    val id: Long? = null,
+    val deviceId: String? = null,
+    val eventType: String? = null, // "sleep" | "wake"
+    val timestamp: Long? = null
+)
+
 interface SoundEventApi {
     @POST("/api/sound-events")
     fun createSoundEvent(@Body request: SoundEventRequest): Call<Void>
@@ -121,6 +136,14 @@ interface SoundEventApi {
     /** 세션 상태머신이 확정 종료한 행동 세션(식사/청소/세탁/설거지/인지)을 저장한다. */
     @POST("/api/behavior-sessions")
     fun createBehaviorSession(@Body request: BehaviorSessionRequest): Call<Void>
+
+    /** 취침/기상 상태머신이 SLEEP 또는 WAKE를 확정했을 때 저장한다. SoundEvent/BehaviorSession과는 별도 엔드포인트. */
+    @POST("/api/sleep-wake-events")
+    fun createSleepWakeEvent(@Body request: SleepWakeEventRequest): Call<Void>
+
+    /** deviceId 에 해당하는 취침/기상 확정 이벤트 목록을 조회한다 (보호자 화면 수면 시간 표시용). */
+    @GET("/api/sleep-wake-events")
+    suspend fun getSleepWakeEvents(@Query("deviceId") deviceId: String): List<SleepWakeEventResponse>
 }
 
 object ServerApiClient {

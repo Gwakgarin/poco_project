@@ -26,6 +26,7 @@ import androidx.navigation.compose.rememberNavController
 import com.example.poco.BehaviorSessionResponse
 import com.example.poco.DangerAlertResponse
 import com.example.poco.ServerApiClient
+import com.example.poco.SleepWakeEventResponse
 import com.example.poco.SoundEventResponse
 import com.example.poco.location.LocationStore
 import com.example.poco.ui.components.AppTab
@@ -122,6 +123,37 @@ private fun DangerAlertResponse.toAnomalyAlert() = AnomalyAlert(
     type = anomalyTypeFor(reason, soundLabel),
     evidence = reason ?: soundLabel ?: "위험 신호가 감지됐어요"
 )
+
+private fun SleepWakeEventResponse.toTimelineEntry() = TimelineEntry(
+    time = timestamp?.let { timeFormatter.format(it) } ?: "-",
+    label = if (eventType == "wake") "기상" else "취침",
+    isRisk = false
+)
+
+/** sleep 확정 이벤트 -> 바로 다음 wake 확정 이벤트로 이어지는 구간만 묶어서 총 수면 시간을 계산한다. */
+private fun List<SleepWakeEventResponse>.totalSleepDurationLabel(): String {
+    val sorted = sortedBy { it.timestamp ?: 0L }
+    var totalMs = 0L
+    var pendingSleepAt: Long? = null
+    for (event in sorted) {
+        when (event.eventType) {
+            "sleep" -> pendingSleepAt = event.timestamp
+            "wake" -> {
+                val sleptAt = pendingSleepAt
+                val wokeAt = event.timestamp
+                if (sleptAt != null && wokeAt != null && wokeAt > sleptAt) {
+                    totalMs += wokeAt - sleptAt
+                }
+                pendingSleepAt = null
+            }
+        }
+    }
+    if (totalMs <= 0L) return "-"
+    val totalMinutes = totalMs / 60_000L
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) "${hours}시간 ${minutes}분" else "${minutes}분"
+}
 
 object PocoRoutes {
     const val SPLASH = "splash"
@@ -327,28 +359,49 @@ fun PocoNavHost(
 
         // 보호자 모드
         composable(PocoRoutes.GUARDIAN_HOME) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            var sleepDurationLabel by remember { mutableStateOf("-") }
+            var wakeTimelineEntry by remember { mutableStateOf(TimelineEntry("-", "기상 정보 없음")) }
+            LaunchedEffect(Unit) {
+                val deviceId = locationStore.deviceId()
+                val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
+                sleepDurationLabel = sleepWakeEvents.totalSleepDurationLabel()
+                sleepWakeEvents
+                    .filter { it.eventType == "wake" }
+                    .maxByOrNull { it.timestamp ?: 0L }
+                    ?.let { wakeTimelineEntry = it.toTimelineEntry() }
+            }
             GuardianHomeScreen(
                 selectedTab = GuardianTab.HOME,
                 onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
-                onOpenNotifications = { navController.navigate(PocoRoutes.GUARDIAN_ALERTS) }
+                onOpenNotifications = { navController.navigate(PocoRoutes.GUARDIAN_ALERTS) },
+                sleepDurationLabel = sleepDurationLabel,
+                wakeTimelineEntry = wakeTimelineEntry
             )
         }
         composable(PocoRoutes.GUARDIAN_TIMELINE) {
             val context = LocalContext.current
             val locationStore = remember(context) { LocationStore(context) }
             var timeline by remember { mutableStateOf(emptyList<TimelineEntry>()) }
+            var sleepDurationLabel by remember { mutableStateOf("-") }
             LaunchedEffect(Unit) {
                 val deviceId = locationStore.deviceId()
                 val sessions = runCatching { ServerApiClient.api.getBehaviorSessions() }.getOrDefault(emptyList())
                 val alerts = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
+                val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
                 // 참고: danger-alerts 는 실제 발생 시각(epoch)이 있지만 behavior-sessions 는 세션 내 상대 초(startSec)만 있어서
                 // 두 시간 기준이 달라 정확히 하나의 시간순으로 병합할 수는 없음 -> 위험 알림을 먼저, 그 아래 행동 세션을 보여줌.
-                timeline = alerts.map { it.toTimelineEntry() } + sessions.map { it.toTimelineEntry() }
+                timeline = alerts.map { it.toTimelineEntry() } +
+                    sessions.map { it.toTimelineEntry() } +
+                    sleepWakeEvents.map { it.toTimelineEntry() }
+                sleepDurationLabel = sleepWakeEvents.totalSleepDurationLabel()
             }
             GuardianDailyMonitoringScreen(
                 selectedTab = GuardianTab.TIMELINE,
                 onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
-                timeline = timeline
+                timeline = timeline,
+                sleepDurationLabel = sleepDurationLabel
             )
         }
         composable(PocoRoutes.GUARDIAN_TREND) {
