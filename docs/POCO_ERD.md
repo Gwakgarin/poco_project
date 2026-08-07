@@ -125,6 +125,13 @@ erDiagram
         bigint detected_at_epoch_ms
     }
 
+    SLEEP_WAKE_EVENTS {
+        bigint id PK
+        varchar device_id "String UUID"
+        varchar event_type "sleep | wake"
+        bigint timestamp "epoch ms"
+    }
+
     OUTING_EVENTS {
         bigint id PK
         bigint device_id FK
@@ -201,6 +208,12 @@ erDiagram
 - 위험 감지 정책(`DangerPolicy.kt`, scream/car_horn 등)이 만들어내는 실시간 위험 알림 로그. GPS 상태(HOME/OUTSIDE)와 결합해서 판단.
 - `alerts` 테이블(이상탐지용, MEAL_IRREGULAR 등)과는 성격이 다름 — `alerts`는 장기 패턴 기반 이상탐지용이고 `danger_alerts`는 즉각적인 위험음 감지용. 통합하지 않고 별도 유지하기로 결론.
 
+### sleep_wake_events
+- 클라이언트(`SleepDetector` 상태기계, `ACTIVE → SLEEP → WAKE_CANDIDATE → ACTIVE`)가 SLEEP 또는 WAKE를 확정한 시점에만 1건씩 POST하도록 앱 쪽은 구현 완료. WAKE_CANDIDATE에서 5분 내 재차 무활동으로 돌아간 오탐 후보는 클라이언트에서 걸러지고 서버로 오지 않음.
+- `sound_events`는 5초 세그먼트 단위 원본 라벨만 있어서 "취침/기상 확정" 판단 자체가 불가능함(가속도계 움직임 + 활동성 소리 라벨을 30분/5분 단위로 누적 판단하는 로직이 클라이언트에 있음) — `behavior_sessions`와 같은 이유로 별도 테이블 필요.
+- **테이블/API 모두 아직 없음.** `POST`/`GET` 둘 다 요청해둔 상태(behavior_sessions와 같은 패턴). `device_id`는 다른 실사용 테이블과 동일하게 String UUID.
+- `GET /api/guardian/home-summary`의 `sleepHours`는 이 테이블에서 `sleep` → 바로 다음 `wake`로 이어지는 쌍을 묶어 duration을 합산해 계산 예정 (앱 쪽 `PocoNavHost.kt`의 `totalSleepDurationLabel()`과 동일 로직, 홈/타임라인 화면에 이미 붙여둠).
+
 ### outing_events / alerts
 - 테이블/API는 만들어졌으나 아직 아무것도 채워주지 않음. `alerts`는 이상탐지 로직(AI 파트) 자체가 없어서 계속 비어있을 예정. `outing_events`도 GPS 기반 외출 감지 로직이 아직 앱에 연결 안 됨.
 
@@ -222,7 +235,7 @@ erDiagram
 | API | 계산 근거 | 구현 여부 |
 | --- | --- | --- |
 | `GET /api/trend` | behavior_sessions + outing_events → AI 파트 집계 모듈 | 미구현 |
-| `GET /api/guardian/home-summary` | behavior_sessions(식사/인지활동), outing_events(외출상태), 수면은 sound_events 기반 별도 로직 | 미구현 |
+| `GET /api/guardian/home-summary` | behavior_sessions(식사/인지활동), outing_events(외출상태), sleep_wake_events(수면 시간) | 미구현 |
 | `GET /api/timeline` | behavior_sessions + alerts를 시간순 병합 | 미구현 (프론트에서 behavior_sessions + danger_alerts를 각각 조회해서 화면에 임시로 병렬 표시 중) |
 | `GET /api/daily-stats` | behavior_sessions + alerts 카운트/평균 | 미구현 |
 | `GET /api/activity-log` | behavior_sessions (behaviorType으로 아이콘 매핑) | 부분 구현 — 전용 백엔드 API는 없고, 앱이 `GET /api/behavior-sessions` 원본을 받아 프론트에서 오늘 날짜 필터링 + 아이콘 매핑 처리 중 |
