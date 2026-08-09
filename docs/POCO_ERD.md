@@ -211,7 +211,7 @@ erDiagram
 ### sleep_wake_events
 - 클라이언트(`SleepDetector` 상태기계, `ACTIVE → SLEEP → WAKE_CANDIDATE → ACTIVE`)가 SLEEP 또는 WAKE를 확정한 시점에만 1건씩 POST하도록 앱 쪽은 구현 완료. WAKE_CANDIDATE에서 5분 내 재차 무활동으로 돌아간 오탐 후보는 클라이언트에서 걸러지고 서버로 오지 않음.
 - `sound_events`는 5초 세그먼트 단위 원본 라벨만 있어서 "취침/기상 확정" 판단 자체가 불가능함(가속도계 움직임 + 활동성 소리 라벨을 30분/5분 단위로 누적 판단하는 로직이 클라이언트에 있음) — `behavior_sessions`와 같은 이유로 별도 테이블 필요.
-- **테이블/API 모두 아직 없음.** `POST`/`GET` 둘 다 요청해둔 상태(behavior_sessions와 같은 패턴). `device_id`는 다른 실사용 테이블과 동일하게 String UUID.
+- 테이블 스키마 및 저장 로직 완성. API(POST/GET 엔드포인트)는 미구현. `device_id`는 다른 실사용 테이블과 동일하게 String UUID.
 - `GET /api/guardian/home-summary`의 `sleepHours`는 이 테이블에서 `sleep` → 바로 다음 `wake`로 이어지는 쌍을 묶어 duration을 합산해 계산 예정 (앱 쪽 `PocoNavHost.kt`의 `totalSleepDurationLabel()`과 동일 로직, 홈/타임라인 화면에 이미 붙여둠).
 
 ### outing_events / alerts
@@ -255,3 +255,4 @@ erDiagram
 - 인증/기기 식별 체계 이원화: `users`/`devices`(로그인 기반, bigint) vs 앱이 실제 쓰는 String UUID deviceId — 로그인 기능 붙일 때 반드시 하나로 통합 필요. 현재는 로그인 없이 앱이 자체 생성한 deviceId로 모든 실사용 기능(소리/위치/위험/행동)이 돌아가는 중.
 - `sound_events`에 `device_id`/`created_at` 컬럼 없음: 기존 노트에서 "확인 필요"로 남겨뒀던 부분 확정됨 — 실제로 없음. 기기별/날짜별 필터링이 불가능한 상태라, 필요해지면 컬럼 추가 검토.
 - `behavior_events` 대신 기존 `behavior_sessions` 테이블을 확장하는 방식으로 구현함. 테이블명 참고 바람.
+- `sleep_wake_events` 테이블 스키마·저장 로직 완성, 서버 API(POST/GET) 연결 대기 중.
