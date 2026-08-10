@@ -46,6 +46,7 @@ import com.example.poco.ui.screens.GuardianLinkManagementScreen
 import com.example.poco.ui.screens.GuardianSettingsScreen
 import com.example.poco.ui.screens.GuardianTrendScreen
 import com.example.poco.ui.screens.GuardianUserLinkInfoScreen
+import com.example.poco.ui.screens.LoginFormScreen
 import com.example.poco.ui.screens.LoginScreen
 import com.example.poco.ui.screens.MicSensitivityScreen
 import com.example.poco.ui.screens.NotificationCenterScreen
@@ -158,6 +159,7 @@ private fun List<SleepWakeEventResponse>.totalSleepDurationLabel(): String {
 object PocoRoutes {
     const val SPLASH = "splash"
     const val LOGIN = "login"
+    const val LOGIN_FORM = "login_form"
     const val SIGN_UP = "sign_up"
     const val ROLE_SELECT = "role_select"
     const val QR_SHOW = "qr_show"
@@ -223,8 +225,14 @@ fun PocoNavHost(
         }
         composable(PocoRoutes.LOGIN) {
             LoginScreen(
-                onLoginClick = { navController.navigate(PocoRoutes.ROLE_SELECT) },
+                onLoginClick = { navController.navigate(PocoRoutes.LOGIN_FORM) },
                 onSignUpClick = { navController.navigate(PocoRoutes.SIGN_UP) }
+            )
+        }
+        composable(PocoRoutes.LOGIN_FORM) {
+            LoginFormScreen(
+                onBack = { navController.popBackStack() },
+                onLoginComplete = { navController.navigate(PocoRoutes.ROLE_SELECT) }
             )
         }
         composable(PocoRoutes.SIGN_UP) {

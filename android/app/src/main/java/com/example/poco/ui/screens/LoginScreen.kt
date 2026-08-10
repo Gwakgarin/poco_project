@@ -7,17 +7,26 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.poco.ui.components.PocoLogoBadge
+import com.example.poco.ui.components.PocoTextField
+import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.components.PrimaryButton
 import com.example.poco.ui.components.SecondaryButton
 import com.example.poco.ui.theme.POCOTheme
@@ -76,5 +85,65 @@ fun LoginScreen(
 private fun LoginScreenPreview() {
     POCOTheme {
         LoginScreen(onLoginClick = {}, onSignUpClick = {})
+    }
+}
+
+@Composable
+fun LoginFormScreen(
+    onBack: () -> Unit,
+    onLoginComplete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+
+    val isValid = email.isNotBlank() && password.isNotBlank()
+
+    Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            PocoTopBar(title = "로그인", onBack = onBack)
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "가입할 때 등록한 이메일과 비밀번호를 입력해주세요",
+                    color = PocoTextMuted,
+                    fontSize = 14.sp
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                PocoTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = "이메일",
+                    keyboardType = KeyboardType.Email,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                PocoTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = "비밀번호",
+                    isPassword = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
+                PrimaryButton(text = "로그인", onClick = onLoginComplete, enabled = isValid)
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, widthDp = 412, heightDp = 892)
+@Composable
+private fun LoginFormScreenPreview() {
+    POCOTheme {
+        LoginFormScreen(onBack = {}, onLoginComplete = {})
     }
 }

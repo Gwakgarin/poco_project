@@ -36,10 +36,11 @@ fun SignUpScreen(
 ) {
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var phoneNumber by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordConfirm by remember { mutableStateOf("") }
 
-    val isValid = name.isNotBlank() && email.isNotBlank() &&
+    val isValid = name.isNotBlank() && email.isNotBlank() && phoneNumber.isNotBlank() &&
         password.isNotBlank() && password == passwordConfirm
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
@@ -66,6 +67,13 @@ fun SignUpScreen(
                     onValueChange = { email = it },
                     label = "이메일",
                     keyboardType = KeyboardType.Email,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                PocoTextField(
+                    value = phoneNumber,
+                    onValueChange = { phoneNumber = it },
+                    label = "휴대폰 번호",
+                    keyboardType = KeyboardType.Phone,
                     modifier = Modifier.fillMaxWidth()
                 )
                 PocoTextField(
