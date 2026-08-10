@@ -135,15 +135,15 @@ private val keyMetricChangesByPeriod = mapOf(
     )
 )
 
-private val hourlyRhythm = listOf(
-    2, 1, 0, 0, 0, 1, 3, 6, 8, 7, 6, 8, 9, 7, 6, 8, 9, 8, 7, 6, 5, 4, 3, 2
-)
+/** 실데이터가 없을 때(요청 실패 등)만 쓰는 자리표시 값. 실사용 시엔 항상 GuardianTrendScreen의 hourlyRhythm 파라미터로 대체됨. */
+private val defaultHourlyRhythm = List(24) { 0 }
 
 @Composable
 fun GuardianTrendScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hourlyRhythm: List<Int> = defaultHourlyRhythm
 ) {
     var selectedPeriod by remember { mutableStateOf(TrendPeriod.WEEK) }
     val series = trendSeriesByPeriod.getValue(selectedPeriod)
@@ -160,7 +160,7 @@ fun GuardianTrendScreen(
                     item {
                         PeriodToggleRow(selected = selectedPeriod, onSelect = { selectedPeriod = it })
                     }
-                    item { DailyRhythmCard() }
+                    item { DailyRhythmCard(hourlyRhythm = hourlyRhythm) }
                     item { LongTermTrendCard(period = selectedPeriod, series = series) }
                     item { CognitiveMetricsCard(metrics = cognitiveMetrics) }
                     item {
@@ -214,7 +214,7 @@ private fun CardTitle(text: String) {
 }
 
 @Composable
-private fun DailyRhythmCard() {
+private fun DailyRhythmCard(hourlyRhythm: List<Int>) {
     PocoCard(modifier = Modifier.fillMaxWidth()) {
         CardTitle("24시간 생활 리듬 · 오늘 기준")
         Spacer(modifier = Modifier.height(12.dp))
@@ -226,7 +226,7 @@ private fun DailyRhythmCard() {
             val barCount = hourlyRhythm.size
             val gap = 3.dp.toPx()
             val barWidth = (size.width - gap * (barCount - 1)) / barCount
-            val maxVal = hourlyRhythm.max().toFloat()
+            val maxVal = (hourlyRhythm.maxOrNull() ?: 0).coerceAtLeast(1).toFloat()
             hourlyRhythm.forEachIndexed { index, value ->
                 val barHeight = (value / maxVal) * size.height
                 drawRoundRect(
@@ -420,6 +420,10 @@ private fun AiSummaryCard(summaryText: String, keyChanges: List<KeyMetricChange>
 @Composable
 private fun GuardianTrendScreenPreview() {
     POCOTheme {
-        GuardianTrendScreen(selectedTab = GuardianTab.TREND, onTabSelected = {})
+        GuardianTrendScreen(
+            selectedTab = GuardianTab.TREND,
+            onTabSelected = {},
+            hourlyRhythm = listOf(2, 1, 0, 0, 0, 1, 3, 6, 8, 7, 6, 8, 9, 7, 6, 8, 9, 8, 7, 6, 5, 4, 3, 2)
+        )
     }
 }

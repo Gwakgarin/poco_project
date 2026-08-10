@@ -156,6 +156,27 @@ private fun List<SleepWakeEventResponse>.totalSleepDurationLabel(): String {
     return if (hours > 0) "${hours}시간 ${minutes}분" else "${minutes}분"
 }
 
+/** 오늘 확정된 behavior_sessions를 시작 시각(startTime) 기준 0~23시 버킷으로 묶어 "24시간 생활 리듬" 막대그래프 값을 만든다. */
+private fun List<BehaviorSessionResponse>.hourlyRhythmToday(): List<Int> {
+    val cal = java.util.Calendar.getInstance()
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    val startOfToday = cal.timeInMillis
+    val endOfToday = startOfToday + 24 * 60 * 60 * 1000L
+
+    val buckets = IntArray(24)
+    for (session in this) {
+        val startTime = session.startTime ?: continue
+        if (startTime !in startOfToday until endOfToday) continue
+        cal.timeInMillis = startTime
+        val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
+        buckets[hour] += 1
+    }
+    return buckets.toList()
+}
+
 object PocoRoutes {
     const val SPLASH = "splash"
     const val LOGIN = "login"
@@ -413,9 +434,16 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.GUARDIAN_TREND) {
+            var hourlyRhythm by remember { mutableStateOf(List(24) { 0 }) }
+            LaunchedEffect(Unit) {
+                hourlyRhythm = runCatching { ServerApiClient.api.getBehaviorSessions() }
+                    .getOrDefault(emptyList())
+                    .hourlyRhythmToday()
+            }
             GuardianTrendScreen(
                 selectedTab = GuardianTab.TREND,
-                onTabSelected = { tab -> navController.navigateGuardianTab(tab) }
+                onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
+                hourlyRhythm = hourlyRhythm
             )
         }
         composable(PocoRoutes.GUARDIAN_ALERTS) {
