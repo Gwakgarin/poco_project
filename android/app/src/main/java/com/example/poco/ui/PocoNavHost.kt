@@ -53,6 +53,7 @@ import com.example.poco.ui.screens.NotificationCenterScreen
 import com.example.poco.ui.screens.NotificationSettingsScreen
 import com.example.poco.ui.screens.QrScanScreen
 import com.example.poco.ui.screens.QrShowScreen
+import com.example.poco.ui.screens.RelationSelectScreen
 import com.example.poco.ui.screens.RoleSelectScreen
 import com.example.poco.ui.screens.SettingsScreen
 import com.example.poco.ui.screens.SignUpScreen
@@ -185,6 +186,7 @@ object PocoRoutes {
     const val ROLE_SELECT = "role_select"
     const val QR_SHOW = "qr_show"
     const val QR_SCAN = "qr_scan"
+    const val RELATION_SELECT = "relation_select"
     const val USER_HOME = "user_home"
     const val USER_ACTIVITY = "user_activity"
     const val USER_SETTINGS = "user_settings"
@@ -276,7 +278,13 @@ fun PocoNavHost(
         }
         composable(PocoRoutes.QR_SCAN) {
             QrScanScreen(
-                onScanned = { navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN) },
+                onScanned = { navController.navigate(PocoRoutes.RELATION_SELECT) },
+                onBack = { navController.popBackStack() }
+            )
+        }
+        composable(PocoRoutes.RELATION_SELECT) {
+            RelationSelectScreen(
+                onComplete = { navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN) },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -482,10 +490,18 @@ fun PocoNavHost(
             NotificationSettingsScreen(onBack = { navController.popBackStack() })
         }
         composable(PocoRoutes.GUARDIAN_LINK_NEW_USER) {
-            QrScanScreen(
-                onScanned = { navController.popBackStack() },
-                onBack = { navController.popBackStack() }
-            )
+            var showRelationSelect by remember { mutableStateOf(false) }
+            if (showRelationSelect) {
+                RelationSelectScreen(
+                    onComplete = { navController.popBackStack() },
+                    onBack = { showRelationSelect = false }
+                )
+            } else {
+                QrScanScreen(
+                    onScanned = { showRelationSelect = true },
+                    onBack = { navController.popBackStack() }
+                )
+            }
         }
     }
 }
