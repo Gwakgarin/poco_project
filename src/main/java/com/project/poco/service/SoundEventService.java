@@ -20,4 +20,8 @@ public class SoundEventService {
     public List<SoundEvent> findAll() {
         return soundEventRepository.findAll();
     }
+
+    public List<SoundEvent> findByDeviceId(Long deviceId) {
+        return soundEventRepository.findByDeviceId(deviceId);
+    }
 }

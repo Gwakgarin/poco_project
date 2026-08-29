@@ -20,4 +20,8 @@ public class BehaviorSessionService {
     public List<BehaviorSession> findAll() {
         return behaviorSessionRepository.findAll();
     }
+
+    public List<BehaviorSession> findByDeviceId(Long deviceId) {
+        return behaviorSessionRepository.findByDeviceId(deviceId);
+    }
 }

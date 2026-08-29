@@ -20,7 +20,7 @@ public class SoundEventController {
     }
 
     @GetMapping
-    public List<SoundEvent> getAll() {
-        return soundEventService.findAll();
+    public List<SoundEvent> getAll(@RequestParam(required = false) Long deviceId) {
+        return (deviceId == null) ? soundEventService.findAll() : soundEventService.findByDeviceId(deviceId);
     }
 }
