@@ -18,8 +18,11 @@ public class EmergencyDispatch {
 
     @Column(nullable = false)
     private Long deviceId;
-    private Long dispatchedBy; // 요청한 guardian(users.id). ERD는 not null인데, 보호자 없이
-    // 본인이 직접 응급요청 하는 경우도 있을 것 같아서 일단 nullable로 남겨뒀습니다. not null로 강제하고 싶으면 말씀해주세요.
+
+    // ERD 확정: not null. 본인이 SOS를 직접 눌러도 그 "본인"의 userId를 넣어서 보내야 함
+    // (누가 요청했는지는 항상 기록되어야 해서 null 허용 안 함 - 안드로이드 앱에서 항상 채워서 보내주세요)
+    @Column(nullable = false)
+    private Long dispatchedBy;
 
     private LocalDateTime requestedAt;
 
