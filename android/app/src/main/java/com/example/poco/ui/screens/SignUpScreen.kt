@@ -31,7 +31,7 @@ import com.example.poco.ui.theme.PocoTextMuted
 @Composable
 fun SignUpScreen(
     onBack: () -> Unit,
-    onSignUpComplete: () -> Unit,
+    onSignUpComplete: (name: String, email: String, phoneNumber: String, password: String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var name by remember { mutableStateOf("") }
@@ -93,7 +93,11 @@ fun SignUpScreen(
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
-                PrimaryButton(text = "가입 완료", onClick = onSignUpComplete, enabled = isValid)
+                PrimaryButton(
+                    text = "가입 완료",
+                    onClick = { onSignUpComplete(name, email, phoneNumber, password) },
+                    enabled = isValid
+                )
             }
         }
     }
@@ -103,6 +107,6 @@ fun SignUpScreen(
 @Composable
 private fun SignUpScreenPreview() {
     POCOTheme {
-        SignUpScreen(onBack = {}, onSignUpComplete = {})
+        SignUpScreen(onBack = {}, onSignUpComplete = { _, _, _, _ -> })
     }
 }

@@ -33,18 +33,6 @@ import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.delay
 
-data class SoundEventResponse(
-    val id: Long,
-    val rawFile: String,
-    val splitFile: String,
-    val predLabel: String,
-    val predScore: Double,
-    val segIndex: Int,
-    val startSec: Int,
-    val endSec: Int,
-    val smoothedLabel: String
-)
-
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

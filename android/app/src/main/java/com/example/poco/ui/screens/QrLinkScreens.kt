@@ -36,6 +36,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.poco.ui.components.PocoTextField
 import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.components.PrimaryButton
 import com.example.poco.ui.theme.POCOTheme
@@ -45,9 +46,11 @@ import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 import kotlin.random.Random
 
-/** 사용자 기기에 표시되는 연동 코드 화면. 보호자가 이 코드를 스캔해 계정을 연결한다. */
+/** 사용자 기기에 표시되는 연동 코드 화면. 보호자가 이 코드를 스캔해 계정을 연결한다.
+ *  code가 null이면 서버에서 아직 발급 중이라는 뜻이라 안내 문구만 보여준다. */
 @Composable
 fun QrShowScreen(
+    code: String?,
     onDone: () -> Unit,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
@@ -73,7 +76,11 @@ fun QrShowScreen(
                 Spacer(modifier = Modifier.height(32.dp))
                 QrPlaceholder(seed = 42)
                 Spacer(modifier = Modifier.height(24.dp))
-                Text(text = "연동 코드: 7QK2-90LX", color = PocoTextMuted, fontSize = 14.sp)
+                Text(
+                    text = code?.let { "연동 코드: $it" } ?: "코드 발급 중...",
+                    color = PocoTextMuted,
+                    fontSize = 14.sp
+                )
                 Spacer(modifier = Modifier.height(40.dp))
                 PrimaryButton(text = "연동 완료", onClick = onDone)
             }
@@ -81,13 +88,15 @@ fun QrShowScreen(
     }
 }
 
-/** 보호자 기기의 스캔 화면. 카메라 연동 전이라 뷰파인더는 목업이며 버튼으로 다음 단계로 넘어간다. */
+/** 보호자 기기의 스캔 화면. 카메라 연동 전이라 코드를 직접 입력받는다. */
 @Composable
 fun QrScanScreen(
-    onScanned: () -> Unit,
+    onScanned: (code: String) -> Unit,
     onBack: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    var code by remember { mutableStateOf("") }
+
     Surface(modifier = modifier.fillMaxSize(), color = Color.Black) {
         Column(modifier = Modifier.fillMaxSize()) {
             PocoTopBar(title = "", onBack = onBack, contentColor = Color.White)
@@ -100,7 +109,7 @@ fun QrScanScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "사용자 기기의 코드를\n화면 안에 맞춰주세요",
+                    text = "사용자 기기에 뜬\n연동 코드를 입력해주세요",
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -120,14 +129,27 @@ fun QrScanScreen(
                         modifier = Modifier.size(64.dp)
                     )
                 }
-                Spacer(modifier = Modifier.height(40.dp))
-                PrimaryButton(text = "스캔 완료 (테스트)", onClick = onScanned)
+                Spacer(modifier = Modifier.height(24.dp))
+                PocoTextField(
+                    value = code,
+                    onValueChange = { code = it },
+                    label = "연동 코드",
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                PrimaryButton(text = "연동하기", onClick = { onScanned(code) }, enabled = code.isNotBlank())
             }
         }
     }
 }
 
-private val RELATION_OPTIONS = listOf("딸", "아들", "배우자", "요양보호사", "기타")
+/** 화면에 보여주는 한글 라벨 -> 서버가 받는 relationLabel(ENUM) 값. */
+private val RELATION_OPTIONS = listOf(
+    "가족" to "FAMILY",
+    "요양보호사" to "CAREGIVER",
+    "친구" to "FRIEND",
+    "기타" to "OTHER"
+)
 
 /** QR 스캔 완료 직후, 보호자가 피보호자와의 관계를 선택하는 화면. */
 @Composable
@@ -162,11 +184,11 @@ fun RelationSelectScreen(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        rowOptions.forEach { option ->
+                        rowOptions.forEach { (label, value) ->
                             RelationOptionCard(
-                                label = option,
-                                isSelected = selected == option,
-                                onClick = { selected = option },
+                                label = label,
+                                isSelected = selected == value,
+                                onClick = { selected = value },
                                 modifier = Modifier.weight(1f)
                             )
                         }
@@ -283,7 +305,7 @@ private fun QrPlaceholder(seed: Int) {
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)
 @Composable
 private fun QrShowScreenPreview() {
-    POCOTheme { QrShowScreen(onDone = {}, onBack = {}) }
+    POCOTheme { QrShowScreen(code = "7QK2-90LX", onDone = {}, onBack = {}) }
 }
 
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)

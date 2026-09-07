@@ -69,7 +69,7 @@ class AudioMonitorService : Service() {
         sleepDetector = SleepDetector(this)
         sleepDetector.onConfirmed = { event -> postSleepWakeEvent(event) }
 
-        locationUploadManager = LocationUploadManager(locationStore.deviceId()) { status ->
+        locationUploadManager = LocationUploadManager(locationStore) { status ->
             sendLocationStatus(status)
         }
         locationTracker = LocationTracker(
@@ -322,7 +322,11 @@ class AudioMonitorService : Service() {
         FloatArray(size) { index -> this[index] / 32768.0f }
 
     private fun postSoundEvent(result: ClassificationResult, wavFile: File): String {
+        val deviceId = locationStore.backendDeviceId()
+            ?: return "Server save skipped: device not registered yet"
+
         val request = SoundEventRequest(
+            deviceId = deviceId,
             rawFile = wavFile.name,
             splitFile = wavFile.name,
             predLabel = result.label,
@@ -346,16 +350,16 @@ class AudioMonitorService : Service() {
         val state = latest?.second ?: HomeState.UNKNOWN
         val detectedAt = System.currentTimeMillis()
         val decision = dangerPolicy.evaluate(label, state, detectedAt) ?: return null
-        val sample = latest?.first
+        val deviceId = locationStore.backendDeviceId()
+            ?: return "Danger alert save skipped: device not registered yet"
         val request = DangerAlertRequest(
-            deviceId = locationStore.deviceId(),
+            deviceId = deviceId,
             soundLabel = label,
             level = decision.level.name,
             reason = decision.reason,
-            homeState = state.name,
-            latitude = sample?.latitude,
-            longitude = sample?.longitude,
-            detectedAtEpochMs = detectedAt
+            detectedAt = detectedAt.toServerDateTime()
+            // homeState/latitude/longitude는 danger_alerts 테이블에서 제거되어 더 이상 안 보냄.
+            // 위치는 LocationUploadManager를 통해 latest-locations로 이미 별도 저장되고 있음.
         )
         val response = ServerApiClient.api.createDangerAlert(request).execute()
         return if (response.isSuccessful) {
@@ -368,12 +372,17 @@ class AudioMonitorService : Service() {
     /** 세션이 확정 종료됐을 때(onClose 콜백) 서버에 저장한다. 실패해도 앱 흐름은 계속되게 조용히 로그만 남긴다. */
     private fun postBehaviorSession(record: BehaviorSessionRecord) {
         try {
+            val deviceId = locationStore.backendDeviceId()
+            if (deviceId == null) {
+                Log.w("POCO", "BehaviorSession(${record.behavior}) save skipped: device not registered yet")
+                return
+            }
             val request = BehaviorSessionRequest(
-                deviceId = locationStore.deviceId(),
+                deviceId = deviceId,
                 behavior = record.behavior,
-                startTime = record.startTime,
-                confirmedTime = record.confirmedTime,
-                endTime = record.endTime,
+                startTime = record.startTime.toServerDateTime(),
+                confirmedTime = record.confirmedTime.toServerDateTime(),
+                endTime = record.endTime.toServerDateTime(),
                 endReason = record.endReason
             )
             val response = ServerApiClient.api.createBehaviorSession(request).execute()
@@ -386,10 +395,16 @@ class AudioMonitorService : Service() {
     /** 취침/기상 상태머신이 SLEEP 또는 WAKE를 확정했을 때(onConfirmed 콜백)만 서버에 저장한다. */
     private fun postSleepWakeEvent(event: SleepWakeEvent) {
         try {
+            val deviceId = locationStore.backendDeviceId()
+            if (deviceId == null) {
+                Log.w("POCO", "SleepWakeEvent(${event.type}) save skipped: device not registered yet")
+                return
+            }
             val request = SleepWakeEventRequest(
-                deviceId = locationStore.deviceId(),
-                eventType = event.type,
-                timestamp = event.timestamp
+                deviceId = deviceId,
+                // 서버 enum(SleepWakeEventType)은 SLEEP/WAKE 대문자만 허용하므로 변환해서 보낸다.
+                eventType = event.type.uppercase(),
+                timestamp = event.timestamp.toServerDateTime()
             )
             val response = ServerApiClient.api.createSleepWakeEvent(request).execute()
             Log.d("POCO", "SleepWakeEvent(${event.type}) saved: HTTP ${response.code()}")

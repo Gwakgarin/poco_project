@@ -91,8 +91,9 @@ private fun LoginScreenPreview() {
 @Composable
 fun LoginFormScreen(
     onBack: () -> Unit,
-    onLoginComplete: () -> Unit,
-    modifier: Modifier = Modifier
+    onLoginComplete: (email: String, password: String) -> Unit,
+    modifier: Modifier = Modifier,
+    errorMessage: String? = null
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
@@ -131,10 +132,17 @@ fun LoginFormScreen(
                     isPassword = true,
                     modifier = Modifier.fillMaxWidth()
                 )
+                if (errorMessage != null) {
+                    Text(text = errorMessage, color = androidx.compose.ui.graphics.Color.Red, fontSize = 13.sp)
+                }
             }
 
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
-                PrimaryButton(text = "로그인", onClick = onLoginComplete, enabled = isValid)
+                PrimaryButton(
+                    text = "로그인",
+                    onClick = { onLoginComplete(email, password) },
+                    enabled = isValid
+                )
             }
         }
     }
@@ -144,6 +152,6 @@ fun LoginFormScreen(
 @Composable
 private fun LoginFormScreenPreview() {
     POCOTheme {
-        LoginFormScreen(onBack = {}, onLoginComplete = {})
+        LoginFormScreen(onBack = {}, onLoginComplete = { _, _ -> })
     }
 }

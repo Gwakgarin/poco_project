@@ -16,6 +16,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -25,10 +26,19 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.poco.BehaviorSessionResponse
 import com.example.poco.DangerAlertResponse
+import com.example.poco.DeviceRequest
+import com.example.poco.EmergencyDispatchRequest
+import com.example.poco.LoginRequest
+import com.example.poco.NotificationSettingsRequest
+import com.example.poco.RedeemLinkRequest
 import com.example.poco.ServerApiClient
+import com.example.poco.SignUpRequest
 import com.example.poco.SleepWakeEventResponse
 import com.example.poco.SoundEventResponse
+import com.example.poco.UserLinkResponse
+import com.example.poco.fromServerDateTime
 import com.example.poco.location.LocationStore
+import kotlinx.coroutines.launch
 import com.example.poco.ui.components.AppTab
 import com.example.poco.ui.components.GuardianTab
 import com.example.poco.ui.screens.AccountInfoScreen
@@ -46,6 +56,8 @@ import com.example.poco.ui.screens.GuardianLinkManagementScreen
 import com.example.poco.ui.screens.GuardianSettingsScreen
 import com.example.poco.ui.screens.GuardianTrendScreen
 import com.example.poco.ui.screens.GuardianUserLinkInfoScreen
+import com.example.poco.ui.screens.LinkedPerson
+import com.example.poco.ui.screens.LinkedPersonRole
 import com.example.poco.ui.screens.LoginFormScreen
 import com.example.poco.ui.screens.LoginScreen
 import com.example.poco.ui.screens.MicSensitivityScreen
@@ -98,7 +110,8 @@ private fun behaviorLabel(behavior: String?): String = when (behavior) {
 
 private fun BehaviorSessionResponse.toActivityLogItem(): ActivityLogItem {
     val label = behaviorLabel(behavior).let { if (behavior != null) "$it 감지" else it }
-    val time = startTime?.let { timeFormatter.format(it) } ?: "${startSec ?: 0}s~${endSec ?: 0}s"
+    val startTimeMs = startTime.fromServerDateTime()
+    val time = startTimeMs?.let { timeFormatter.format(it) } ?: "${startSec ?: 0}s~${endSec ?: 0}s"
     return ActivityLogItem(time = time, label = label, icon = iconForEvent(behavior ?: representativeEvent))
 }
 
@@ -110,39 +123,41 @@ private fun SoundEventResponse.toActivityLogItem() = ActivityLogItem(
 
 private fun BehaviorSessionResponse.toTimelineEntry(): TimelineEntry {
     val label = behaviorLabel(behavior).let { if (behavior != null) "$it 감지" else it }
-    val time = startTime?.let { timeFormatter.format(it) } ?: "${startSec ?: 0}s~${endSec ?: 0}s"
+    val startTimeMs = startTime.fromServerDateTime()
+    val time = startTimeMs?.let { timeFormatter.format(it) } ?: "${startSec ?: 0}s~${endSec ?: 0}s"
     return TimelineEntry(time = time, label = label, isRisk = false)
 }
 
 private fun DangerAlertResponse.toTimelineEntry() = TimelineEntry(
-    time = detectedAtEpochMs?.let { timeFormatter.format(it) } ?: "-",
+    time = detectedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
     label = reason ?: soundLabel ?: "위험 신호 감지",
     isRisk = true
 )
 
 private fun DangerAlertResponse.toAnomalyAlert() = AnomalyAlert(
-    time = detectedAtEpochMs?.let { timeFormatter.format(it) } ?: "-",
+    time = detectedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
     type = anomalyTypeFor(reason, soundLabel),
     evidence = reason ?: soundLabel ?: "위험 신호가 감지됐어요"
 )
 
 private fun SleepWakeEventResponse.toTimelineEntry() = TimelineEntry(
-    time = timestamp?.let { timeFormatter.format(it) } ?: "-",
-    label = if (eventType == "wake") "기상" else "취침",
+    time = timestamp.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
+    label = if (eventType.equals("wake", ignoreCase = true)) "기상" else "취침",
     isRisk = false
 )
 
 /** sleep 확정 이벤트 -> 바로 다음 wake 확정 이벤트로 이어지는 구간만 묶어서 총 수면 시간을 계산한다. */
 private fun List<SleepWakeEventResponse>.totalSleepDurationLabel(): String {
-    val sorted = sortedBy { it.timestamp ?: 0L }
+    val sorted = sortedBy { it.timestamp.fromServerDateTime() ?: 0L }
     var totalMs = 0L
     var pendingSleepAt: Long? = null
     for (event in sorted) {
-        when (event.eventType) {
-            "sleep" -> pendingSleepAt = event.timestamp
-            "wake" -> {
+        val eventTimeMs = event.timestamp.fromServerDateTime()
+        when {
+            event.eventType.equals("sleep", ignoreCase = true) -> pendingSleepAt = eventTimeMs
+            event.eventType.equals("wake", ignoreCase = true) -> {
                 val sleptAt = pendingSleepAt
-                val wokeAt = event.timestamp
+                val wokeAt = eventTimeMs
                 if (sleptAt != null && wokeAt != null && wokeAt > sleptAt) {
                     totalMs += wokeAt - sleptAt
                 }
@@ -169,7 +184,7 @@ private fun List<BehaviorSessionResponse>.hourlyRhythmToday(): List<Int> {
 
     val buckets = IntArray(24)
     for (session in this) {
-        val startTime = session.startTime ?: continue
+        val startTime = session.startTime.fromServerDateTime() ?: continue
         if (startTime !in startOfToday until endOfToday) continue
         cal.timeInMillis = startTime
         val hour = cal.get(java.util.Calendar.HOUR_OF_DAY)
@@ -212,6 +227,32 @@ object PocoRoutes {
 private const val LINKED_USER_PHONE_NUMBER = "01000000000"
 private const val LINKED_USER_LAST_LOCATION_QUERY = "37.5665,126.9780"
 
+/** SIGN_UP 화면에서 입력받은 값을 ROLE_SELECT에서 실제 signup() 호출 때까지 들고 있기 위한 홀더. */
+private data class PendingSignUp(
+    val name: String,
+    val email: String,
+    val phoneNumber: String,
+    val password: String
+)
+
+/** role=0(사용자)이면 기기를 등록하고 backendDeviceId를 저장한다.
+ *  네트워크 재시도 등으로 registerDevice가 중복 호출되면 devices.user_id UNIQUE 제약에 걸려 실패하는데,
+ *  그 경우엔 이미 등록된 기기를 다시 조회해서 정상 처리한다. */
+private suspend fun registerDeviceIfUser(locationStore: LocationStore, userId: Long, role: Int) {
+    if (role != 0) return
+    val device = runCatching {
+        ServerApiClient.api.registerDevice(
+            DeviceRequest(
+                userId = userId,
+                deviceUuid = locationStore.deviceId(),
+                micSensitivity = 0.5f,
+                micOn = true
+            )
+        )
+    }.getOrElse { ServerApiClient.api.getDeviceByUserId(userId) }
+    locationStore.saveBackendDeviceId(device.id)
+}
+
 private fun NavHostController.navigateTopLevel(route: String, popUpToRoute: String) {
     navigate(route) {
         popUpTo(popUpToRoute) { inclusive = true }
@@ -231,6 +272,8 @@ fun PocoNavHost(
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
+    var pendingSignUp by remember { mutableStateOf<PendingSignUp?>(null) }
+    var pendingLinkCode by remember { mutableStateOf<String?>(null) }
 
     NavHost(
         navController = navController,
@@ -253,38 +296,131 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.LOGIN_FORM) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
+            var errorMessage by remember { mutableStateOf<String?>(null) }
             LoginFormScreen(
                 onBack = { navController.popBackStack() },
-                onLoginComplete = { navController.navigate(PocoRoutes.ROLE_SELECT) }
+                errorMessage = errorMessage,
+                onLoginComplete = { email, password ->
+                    scope.launch {
+                        runCatching { ServerApiClient.api.login(LoginRequest(email, password)) }
+                            .onSuccess { response ->
+                                val user = response.user
+                                if (!response.success || user == null) {
+                                    errorMessage = response.message ?: "이메일 또는 비밀번호를 확인해주세요"
+                                    return@onSuccess
+                                }
+                                errorMessage = null
+                                locationStore.saveSession(user.id, user.role)
+                                runCatching { registerDeviceIfUser(locationStore, user.id, user.role) }
+                                val homeRoute = if (user.role == 0) PocoRoutes.USER_HOME else PocoRoutes.GUARDIAN_HOME
+                                navController.navigateTopLevel(homeRoute, PocoRoutes.LOGIN)
+                            }
+                            .onFailure { errorMessage = "로그인에 실패했어요. 잠시 후 다시 시도해주세요" }
+                    }
+                }
             )
         }
         composable(PocoRoutes.SIGN_UP) {
             SignUpScreen(
                 onBack = { navController.popBackStack() },
-                onSignUpComplete = { navController.navigate(PocoRoutes.ROLE_SELECT) }
+                onSignUpComplete = { name, email, phoneNumber, password ->
+                    pendingSignUp = PendingSignUp(name, email, phoneNumber, password)
+                    navController.navigate(PocoRoutes.ROLE_SELECT)
+                }
             )
         }
         composable(PocoRoutes.ROLE_SELECT) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
+
+            var isSubmitting by remember { mutableStateOf(false) }
+            var errorMessage by remember { mutableStateOf<String?>(null) }
+
+            fun completeSignUp(role: Int, onDone: () -> Unit) {
+                val pending = pendingSignUp ?: return
+                if (isSubmitting) return
+                isSubmitting = true
+                errorMessage = null
+                scope.launch {
+                    runCatching {
+                        val user = ServerApiClient.api.signup(
+                            SignUpRequest(
+                                name = pending.name,
+                                email = pending.email,
+                                password = pending.password,
+                                phoneNumber = pending.phoneNumber,
+                                role = role
+                            )
+                        )
+                        locationStore.saveSession(user.id, user.role)
+                        registerDeviceIfUser(locationStore, user.id, user.role)
+                    }.onSuccess {
+                        pendingSignUp = null
+                        onDone()
+                    }.onFailure {
+                        isSubmitting = false
+                        errorMessage = "가입에 실패했어요. 잠시 후 다시 시도해주세요"
+                    }
+                }
+            }
+
             RoleSelectScreen(
-                onSelectUser = { navController.navigate(PocoRoutes.QR_SHOW) },
-                onSelectGuardian = { navController.navigate(PocoRoutes.QR_SCAN) }
+                onSelectUser = { completeSignUp(role = 0) { navController.navigate(PocoRoutes.QR_SHOW) } },
+                onSelectGuardian = { completeSignUp(role = 1) { navController.navigate(PocoRoutes.QR_SCAN) } },
+                enabled = !isSubmitting,
+                errorMessage = errorMessage
             )
         }
         composable(PocoRoutes.QR_SHOW) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            var code by remember { mutableStateOf<String?>(null) }
+            LaunchedEffect(Unit) {
+                val userId = locationStore.currentUserId() ?: return@LaunchedEffect
+                runCatching { ServerApiClient.api.issueLinkCode(userId) }
+                    .onSuccess { code = it.code }
+            }
             QrShowScreen(
+                code = code,
                 onDone = { navController.navigateTopLevel(PocoRoutes.USER_HOME, PocoRoutes.LOGIN) },
                 onBack = { navController.popBackStack() }
             )
         }
         composable(PocoRoutes.QR_SCAN) {
             QrScanScreen(
-                onScanned = { navController.navigate(PocoRoutes.RELATION_SELECT) },
+                onScanned = { code ->
+                    pendingLinkCode = code
+                    navController.navigate(PocoRoutes.RELATION_SELECT)
+                },
                 onBack = { navController.popBackStack() }
             )
         }
         composable(PocoRoutes.RELATION_SELECT) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
             RelationSelectScreen(
-                onComplete = { navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN) },
+                onComplete = { relationLabel ->
+                    val code = pendingLinkCode
+                    val guardianId = locationStore.currentUserId()
+                    if (code == null || guardianId == null) {
+                        navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN)
+                        return@RelationSelectScreen
+                    }
+                    scope.launch {
+                        runCatching {
+                            ServerApiClient.api.redeemLinkCode(
+                                RedeemLinkRequest(code = code, guardianId = guardianId, relationLabel = relationLabel)
+                            )
+                        }
+                        pendingLinkCode = null
+                        navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN)
+                    }
+                },
                 onBack = { navController.popBackStack() }
             )
         }
@@ -300,8 +436,12 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.USER_ACTIVITY) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
             var items by remember { mutableStateOf(emptyList<ActivityLogItem>()) }
             LaunchedEffect(Unit) {
+                val deviceId = locationStore.backendDeviceId()
+                if (deviceId == null) return@LaunchedEffect
                 val startOfToday = run {
                     val cal = java.util.Calendar.getInstance()
                     cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
@@ -314,9 +454,9 @@ fun PocoNavHost(
 
                 // sound_events는 아무 로직 없이 찍히는 원본 로그라 "활동 기록"에는 안 맞아서 뺌.
                 // behavior_sessions만 사용 (세션 로직을 거쳐 확정된 것만 여기 들어옴), 그중 오늘 것만 필터링.
-                items = runCatching { ServerApiClient.api.getBehaviorSessions() }.getOrDefault(emptyList())
-                    .filter { (it.startTime ?: 0L) in startOfToday until endOfToday }
-                    .sortedByDescending { it.startTime ?: 0L }
+                items = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }.getOrDefault(emptyList())
+                    .filter { (it.startTime.fromServerDateTime() ?: 0L) in startOfToday until endOfToday }
+                    .sortedByDescending { it.startTime.fromServerDateTime() ?: 0L }
                     .map { it.toActivityLogItem() }
             }
             ActivityLogScreen(
@@ -341,18 +481,42 @@ fun PocoNavHost(
             MicSensitivityScreen(onBack = { navController.popBackStack() })
         }
         composable(PocoRoutes.NOTIFICATION_SETTINGS) {
-            NotificationSettingsScreen(onBack = { navController.popBackStack() })
+            NotificationSettingsRoute(onBack = { navController.popBackStack() })
         }
         composable(PocoRoutes.ACCOUNT_INFO) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
             AccountInfoScreen(
                 onBack = { navController.popBackStack() },
-                onLogout = { navController.navigateTopLevel(PocoRoutes.LOGIN, PocoRoutes.USER_HOME) }
+                onLogout = {
+                    locationStore.clearSession()
+                    navController.navigateTopLevel(PocoRoutes.LOGIN, PocoRoutes.USER_HOME)
+                }
             )
         }
         composable(PocoRoutes.GUARDIAN_LINK_MANAGEMENT) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
+            var guardians by remember { mutableStateOf(emptyList<LinkedPerson>()) }
+            LaunchedEffect(Unit) {
+                val userId = locationStore.currentUserId() ?: return@LaunchedEffect
+                guardians = runCatching { ServerApiClient.api.getMyLinks(userId, "USER") }
+                    .getOrDefault(emptyList())
+                    .map { it.toLinkedPerson(role = LinkedPersonRole.GUARDIAN) }
+            }
             GuardianLinkManagementScreen(
                 onBack = { navController.popBackStack() },
-                onInviteGuardian = { navController.navigate(PocoRoutes.QR_SHOW) }
+                onInviteGuardian = { navController.navigate(PocoRoutes.QR_SHOW) },
+                guardians = guardians,
+                onUnlink = { person ->
+                    guardians = guardians.filterNot { it.linkId == person.linkId }
+                    scope.launch {
+                        person.linkId.toLongOrNull()?.let { linkId ->
+                            runCatching { ServerApiClient.api.deleteLink(linkId) }
+                        }
+                    }
+                }
             )
         }
 
@@ -361,16 +525,6 @@ fun PocoNavHost(
             EmergencyUserScreen(
                 onSafe = { navController.popBackStack() },
                 onSos = { navController.navigate(PocoRoutes.EMERGENCY_GUARDIAN) }
-            )
-        }
-        composable(PocoRoutes.EMERGENCY_GUARDIAN) {
-            val context = LocalContext.current
-            EmergencyGuardianScreen(
-                onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
-                onDispatch = { navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED) },
-                onCall = {
-                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$LINKED_USER_PHONE_NUMBER")))
-                }
             )
         }
         composable(PocoRoutes.EMERGENCY_LOCATION) {
@@ -401,12 +555,13 @@ fun PocoNavHost(
             var sleepDurationLabel by remember { mutableStateOf("-") }
             var wakeTimelineEntry by remember { mutableStateOf(TimelineEntry("-", "기상 정보 없음")) }
             LaunchedEffect(Unit) {
-                val deviceId = locationStore.deviceId()
+                val deviceId = locationStore.backendDeviceId()
+                if (deviceId == null) return@LaunchedEffect
                 val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
                 sleepDurationLabel = sleepWakeEvents.totalSleepDurationLabel()
                 sleepWakeEvents
-                    .filter { it.eventType == "wake" }
-                    .maxByOrNull { it.timestamp ?: 0L }
+                    .filter { it.eventType.equals("wake", ignoreCase = true) }
+                    .maxByOrNull { it.timestamp.fromServerDateTime() ?: 0L }
                     ?.let { wakeTimelineEntry = it.toTimelineEntry() }
             }
             GuardianHomeScreen(
@@ -423,8 +578,9 @@ fun PocoNavHost(
             var timeline by remember { mutableStateOf(emptyList<TimelineEntry>()) }
             var sleepDurationLabel by remember { mutableStateOf("-") }
             LaunchedEffect(Unit) {
-                val deviceId = locationStore.deviceId()
-                val sessions = runCatching { ServerApiClient.api.getBehaviorSessions() }.getOrDefault(emptyList())
+                val deviceId = locationStore.backendDeviceId()
+                if (deviceId == null) return@LaunchedEffect
+                val sessions = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }.getOrDefault(emptyList())
                 val alerts = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
                 val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
                 // 참고: danger-alerts 는 실제 발생 시각(epoch)이 있지만 behavior-sessions 는 세션 내 상대 초(startSec)만 있어서
@@ -442,9 +598,12 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.GUARDIAN_TREND) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
             var hourlyRhythm by remember { mutableStateOf(List(24) { 0 }) }
             LaunchedEffect(Unit) {
-                hourlyRhythm = runCatching { ServerApiClient.api.getBehaviorSessions() }
+                val deviceId = locationStore.backendDeviceId() ?: return@LaunchedEffect
+                hourlyRhythm = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }
                     .getOrDefault(emptyList())
                     .hourlyRhythmToday()
             }
@@ -459,7 +618,8 @@ fun PocoNavHost(
             val locationStore = remember(context) { LocationStore(context) }
             var anomalies by remember { mutableStateOf(emptyList<AnomalyAlert>()) }
             LaunchedEffect(Unit) {
-                val deviceId = locationStore.deviceId()
+                val deviceId = locationStore.backendDeviceId()
+                if (deviceId == null) return@LaunchedEffect
                 runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }
                     .onSuccess { alerts -> anomalies = alerts.map { it.toAnomalyAlert() } }
             }
@@ -481,30 +641,166 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.GUARDIAN_USER_LINK_INFO) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
+            var linkedUsers by remember { mutableStateOf(emptyList<LinkedPerson>()) }
+            LaunchedEffect(Unit) {
+                val userId = locationStore.currentUserId() ?: return@LaunchedEffect
+                linkedUsers = runCatching { ServerApiClient.api.getMyLinks(userId, "GUARDIAN") }
+                    .getOrDefault(emptyList())
+                    .map { it.toLinkedPerson(role = LinkedPersonRole.USER) }
+            }
             GuardianUserLinkInfoScreen(
                 onBack = { navController.popBackStack() },
-                onUnlink = { navController.popBackStack() }
+                linkedUsers = linkedUsers,
+                onUnlink = { person ->
+                    linkedUsers = linkedUsers.filterNot { it.linkId == person.linkId }
+                    scope.launch {
+                        person.linkId.toLongOrNull()?.let { linkId ->
+                            runCatching { ServerApiClient.api.deleteLink(linkId) }
+                        }
+                    }
+                    navController.popBackStack()
+                }
             )
         }
         composable(PocoRoutes.GUARDIAN_NOTIFICATION_SETTINGS) {
-            NotificationSettingsScreen(onBack = { navController.popBackStack() })
+            NotificationSettingsRoute(onBack = { navController.popBackStack() })
         }
         composable(PocoRoutes.GUARDIAN_LINK_NEW_USER) {
-            var showRelationSelect by remember { mutableStateOf(false) }
-            if (showRelationSelect) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
+            var scannedCode by remember { mutableStateOf<String?>(null) }
+            val code = scannedCode
+            if (code != null) {
                 RelationSelectScreen(
-                    onComplete = { navController.popBackStack() },
-                    onBack = { showRelationSelect = false }
+                    onComplete = { relationLabel ->
+                        val guardianId = locationStore.currentUserId()
+                        if (guardianId != null) {
+                            scope.launch {
+                                runCatching {
+                                    ServerApiClient.api.redeemLinkCode(
+                                        RedeemLinkRequest(code = code, guardianId = guardianId, relationLabel = relationLabel)
+                                    )
+                                }
+                                navController.popBackStack()
+                            }
+                        } else {
+                            navController.popBackStack()
+                        }
+                    },
+                    onBack = { scannedCode = null }
                 )
             } else {
                 QrScanScreen(
-                    onScanned = { showRelationSelect = true },
+                    onScanned = { scannedCode = it },
                     onBack = { navController.popBackStack() }
                 )
             }
         }
+
+        // 응급 상황
+        composable(PocoRoutes.EMERGENCY_GUARDIAN) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            val scope = rememberCoroutineScope()
+            var targetDeviceId by remember { mutableStateOf<Long?>(null) }
+            LaunchedEffect(Unit) {
+                val userId = locationStore.currentUserId() ?: return@LaunchedEffect
+                val role = locationStore.currentUserRole()
+                targetDeviceId = if (role == 0) {
+                    locationStore.backendDeviceId()
+                } else {
+                    runCatching { ServerApiClient.api.getMyLinks(userId, "GUARDIAN") }
+                        .getOrDefault(emptyList())
+                        .firstOrNull()
+                        ?.userId
+                        ?.let { patientUserId ->
+                            runCatching { ServerApiClient.api.getDeviceByUserId(patientUserId) }.getOrNull()?.id
+                        }
+                }
+            }
+            EmergencyGuardianScreen(
+                onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
+                onDispatch = {
+                    val deviceId = targetDeviceId
+                    val dispatchedBy = locationStore.currentUserId()
+                    if (deviceId != null && dispatchedBy != null) {
+                        scope.launch {
+                            runCatching {
+                                ServerApiClient.api.dispatchEmergency(EmergencyDispatchRequest(deviceId, dispatchedBy))
+                            }
+                            navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED)
+                        }
+                    } else {
+                        navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED)
+                    }
+                },
+                onCall = {
+                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$LINKED_USER_PHONE_NUMBER")))
+                }
+            )
+        }
     }
 }
+
+/** 알림 설정 화면 공통 래퍼 — 화면 자체는 dumb component라 여기서 실제 조회/저장 API를 붙인다.
+ *  서버 필드 순서(emergencyAlert, activityAnomalyAlert, lowBatteryAlert, dailySummaryAlert)와
+ *  화면의 toggleItems 순서가 반드시 같아야 한다. */
+@Composable
+private fun NotificationSettingsRoute(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val locationStore = remember(context) { LocationStore(context) }
+    val scope = rememberCoroutineScope()
+    var userId by remember { mutableStateOf<Long?>(null) }
+    var values by remember { mutableStateOf(listOf(true, true, true, false)) }
+    LaunchedEffect(Unit) {
+        val id = locationStore.currentUserId() ?: return@LaunchedEffect
+        userId = id
+        runCatching { ServerApiClient.api.getNotificationSettings(id) }
+            .onSuccess { settings ->
+                values = listOf(
+                    settings.emergencyAlert ?: true,
+                    settings.activityAnomalyAlert ?: true,
+                    settings.lowBatteryAlert ?: true,
+                    settings.dailySummaryAlert ?: false
+                )
+            }
+    }
+    NotificationSettingsScreen(
+        onBack = onBack,
+        values = values,
+        onToggle = { index, value ->
+            val updated = values.toMutableList().also { it[index] = value }
+            values = updated
+            val id = userId ?: return@NotificationSettingsScreen
+            scope.launch {
+                runCatching {
+                    ServerApiClient.api.updateNotificationSettings(
+                        NotificationSettingsRequest(
+                            userId = id,
+                            emergencyAlert = updated[0],
+                            activityAnomalyAlert = updated[1],
+                            lowBatteryAlert = updated[2],
+                            dailySummaryAlert = updated[3]
+                        )
+                    )
+                }
+            }
+        }
+    )
+}
+
+/** UserLinkResponse에는 상대방 이름이 없어서(백엔드에 유저 조회 API가 아직 없음) 임시로 관계 라벨만 보여준다. */
+private fun UserLinkResponse.toLinkedPerson(role: LinkedPersonRole): LinkedPerson = LinkedPerson(
+    linkId = id.toString(),
+    name = relationLabel ?: "연동된 사용자",
+    relationLabel = relationLabel ?: "-",
+    linkedAt = linkedAt?.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
+    role = role
+)
 
 private fun NavHostController.navigateUserTab(tab: AppTab) {
     val route = when (tab) {

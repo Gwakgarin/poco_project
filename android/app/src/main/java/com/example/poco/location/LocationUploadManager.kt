@@ -3,15 +3,20 @@ package com.example.poco.location
 import android.util.Log
 import com.example.poco.LatestLocationRequest
 import com.example.poco.ServerApiClient
+import com.example.poco.toServerDateTime
 import java.io.Closeable
 import java.util.concurrent.Executors
 
 /**
  * 최신 위치를 서버에 전송한다.
  * GPS 콜백이나 UI 스레드를 막지 않도록 네트워크 요청을 전용 단일 스레드에서 처리한다.
+ *
+ * deviceId는 생성 시점의 고정값이 아니라 LocationStore에서 매번 다시 읽어온다 -
+ * 서비스가 시작될 때는 아직 기기 등록(devices.id 발급)이 안 끝났을 수도 있어서,
+ * 실제로 업로드하는 시점에 등록이 끝나 있는지 다시 확인하는 게 안전하다.
  */
 class LocationUploadManager(
-    private val deviceId: String,
+    private val locationStore: LocationStore,
     private val onResult: (String) -> Unit = {}
 ) : Closeable {
     private val executor = Executors.newSingleThreadExecutor()
@@ -19,6 +24,12 @@ class LocationUploadManager(
     /** 위치, 정확도, HOME 상태와 측정 시각을 최신 위치 API로 전송한다. */
     fun upload(sample: LocationSample, state: HomeState) {
         executor.execute {
+            val deviceId = locationStore.backendDeviceId()
+            if (deviceId == null) {
+                Log.w("POCO", "Latest location upload skipped: device not registered yet")
+                onResult("Location save skipped: device not registered yet")
+                return@execute
+            }
             val status = try {
                 val response = ServerApiClient.api.updateLatestLocation(
                     LatestLocationRequest(
@@ -27,7 +38,7 @@ class LocationUploadManager(
                         longitude = sample.longitude,
                         accuracyMeters = sample.accuracyMeters,
                         homeState = state.name,
-                        measuredAtEpochMs = sample.measuredAtEpochMs
+                        measuredAt = sample.measuredAtEpochMs.toServerDateTime()
                     )
                 ).execute()
                 if (response.isSuccessful) {

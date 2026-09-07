@@ -38,7 +38,9 @@ import com.example.poco.ui.theme.PocoTextPrimary
 fun RoleSelectScreen(
     onSelectUser: () -> Unit,
     onSelectGuardian: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    errorMessage: String? = null
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(
@@ -67,6 +69,7 @@ fun RoleSelectScreen(
                 description = "일상 소리를 자동으로 감지해요",
                 icon = Icons.Filled.Person,
                 accentColor = PocoGreen,
+                enabled = enabled,
                 onClick = onSelectUser
             )
             androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
@@ -75,8 +78,13 @@ fun RoleSelectScreen(
                 description = "가족의 생활 패턴을 확인해요",
                 icon = Icons.Filled.SupervisorAccount,
                 accentColor = PocoNavy,
+                enabled = enabled,
                 onClick = onSelectGuardian
             )
+            if (errorMessage != null) {
+                androidx.compose.foundation.layout.Spacer(modifier = Modifier.height(16.dp))
+                Text(text = errorMessage, color = androidx.compose.ui.graphics.Color.Red, fontSize = 13.sp)
+            }
         }
     }
 }
@@ -87,6 +95,7 @@ private fun RoleCard(
     description: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     accentColor: Color,
+    enabled: Boolean = true,
     onClick: () -> Unit
 ) {
     Column(
@@ -94,7 +103,7 @@ private fun RoleCard(
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(PocoCardBackground)
-            .clickable(onClick = onClick)
+            .clickable(enabled = enabled, onClick = onClick)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
