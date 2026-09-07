@@ -60,31 +60,31 @@ private data class ActivitySummaryStat(
     val valueColor: Color
 )
 
-// 식사/외출/무활동 항목은 아직 이 화면에 실데이터 연동이 안 된 mock. 기상/수면 시간만 실데이터로 대체된다.
-private val homeTimelineRest = listOf(
-    TimelineEntry("오전 7:40", "아침 식사 소리 감지"),
-    TimelineEntry("오전 9:20", "외출 감지 (GPS 이동 시작)"),
-    TimelineEntry("오전 11:05", "귀가 감지 (GPS 이동 종료)"),
-    TimelineEntry("오후 2:00", "3시간 이상 활동 없음", isRisk = true),
-    TimelineEntry("오후 3:30", "정상 활동 재개")
-)
-
 @Composable
 fun GuardianHomeScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
     onOpenNotifications: () -> Unit,
     modifier: Modifier = Modifier,
-    sleepDurationLabel: String = "7시간 20분",
-    wakeTimelineEntry: TimelineEntry = TimelineEntry("오전 7:15", "기상 · 활동 시작")
+    monitoredUserLabel: String = "연동된 사용자",
+    mealCountLabel: String = "-",
+    outingLabel: String = "-",
+    cognitiveDurationLabel: String = "-",
+    micLabel: String = "-",
+    gpsLabel: String = "-",
+    batteryLabel: String = "-",
+    latestAlert: TimelineEntry? = null,
+    sleepDurationLabel: String = "-",
+    wakeTimelineEntry: TimelineEntry = TimelineEntry("-", "기상 정보 없음"),
+    recentTimeline: List<TimelineEntry> = emptyList()
 ) {
     val homeActivitySummary = listOf(
-        ActivitySummaryStat(Icons.Filled.Restaurant, "식사 횟수", "3회", PocoTextPrimary),
-        ActivitySummaryStat(Icons.Filled.DirectionsWalk, "외출 여부", "다녀옴", PocoGreen),
-        ActivitySummaryStat(Icons.Filled.Psychology, "인지 활동 시간", "42분", PocoTextPrimary),
+        ActivitySummaryStat(Icons.Filled.Restaurant, "식사 횟수", mealCountLabel, PocoTextPrimary),
+        ActivitySummaryStat(Icons.Filled.DirectionsWalk, "외출 여부", outingLabel, PocoGreen),
+        ActivitySummaryStat(Icons.Filled.Psychology, "인지 활동 시간", cognitiveDurationLabel, PocoTextPrimary),
         ActivitySummaryStat(Icons.Filled.Bedtime, "수면 시간", sleepDurationLabel, PocoTextPrimary)
     )
-    val homeTimeline = listOf(wakeTimelineEntry) + homeTimelineRest
+    val homeTimeline = (listOf(wakeTimelineEntry) + recentTimeline).ifEmpty { listOf(TimelineEntry("-", "아직 기록이 없어요")) }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -93,26 +93,28 @@ fun GuardianHomeScreen(
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
                     verticalArrangement = Arrangement.spacedBy(20.dp)
                 ) {
-                    item { GuardianHeader() }
-                    item {
-                        PocoCard(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable(onClick = onOpenNotifications),
-                            containerColor = PocoAmberBackground
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(imageVector = Icons.Filled.WarningAmber, contentDescription = null, tint = PocoAmber)
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(text = "주의", color = PocoAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                                    Text(
-                                        text = "평소보다 활동이 적어요 · 마지막 활동 3시간 전",
-                                        color = PocoTextPrimary,
-                                        fontSize = 13.sp
-                                    )
+                    item { GuardianHeader(monitoredUserLabel = monitoredUserLabel) }
+                    if (latestAlert != null) {
+                        item {
+                            PocoCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable(onClick = onOpenNotifications),
+                                containerColor = PocoAmberBackground
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(imageVector = Icons.Filled.WarningAmber, contentDescription = null, tint = PocoAmber)
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(text = "주의", color = PocoAmber, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                        Text(
+                                            text = "${latestAlert.label} · ${latestAlert.time}",
+                                            color = PocoTextPrimary,
+                                            fontSize = 13.sp
+                                        )
+                                    }
+                                    Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = PocoTextMuted)
                                 }
-                                Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = PocoTextMuted)
                             }
                         }
                     }
@@ -142,9 +144,9 @@ fun GuardianHomeScreen(
                                 modifier = Modifier.fillMaxWidth(),
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
-                                StatCard(modifier = Modifier.weight(1f), label = "마이크", value = "ON")
-                                StatCard(modifier = Modifier.weight(1f), label = "GPS", value = "ON")
-                                StatCard(modifier = Modifier.weight(1f), label = "배터리", value = "62%")
+                                StatCard(modifier = Modifier.weight(1f), label = "마이크", value = micLabel)
+                                StatCard(modifier = Modifier.weight(1f), label = "GPS", value = gpsLabel)
+                                StatCard(modifier = Modifier.weight(1f), label = "배터리", value = batteryLabel)
                             }
                         }
                     }
@@ -233,7 +235,7 @@ private fun HomeTimelineRow(entry: TimelineEntry, isLast: Boolean) {
 }
 
 @Composable
-private fun GuardianHeader() {
+private fun GuardianHeader(monitoredUserLabel: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -244,7 +246,7 @@ private fun GuardianHeader() {
     ) {
         Text(text = "보호자 모드", color = Color.White.copy(alpha = 0.65f), fontSize = 13.sp)
         Spacer(modifier = Modifier.height(4.dp))
-        Text(text = "김민수님 모니터링 중", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
+        Text(text = "${monitoredUserLabel} 모니터링 중", color = Color.White, fontSize = 21.sp, fontWeight = FontWeight.Bold)
     }
 }
 
@@ -252,6 +254,19 @@ private fun GuardianHeader() {
 @Composable
 private fun GuardianHomeScreenPreview() {
     POCOTheme {
-        GuardianHomeScreen(selectedTab = GuardianTab.HOME, onTabSelected = {}, onOpenNotifications = {})
+        GuardianHomeScreen(
+            selectedTab = GuardianTab.HOME,
+            onTabSelected = {},
+            onOpenNotifications = {},
+            monitoredUserLabel = "김민수님",
+            mealCountLabel = "3회",
+            outingLabel = "다녀옴",
+            cognitiveDurationLabel = "42분",
+            micLabel = "ON",
+            gpsLabel = "ON",
+            batteryLabel = "62%",
+            sleepDurationLabel = "7시간 20분",
+            wakeTimelineEntry = TimelineEntry("오전 7:15", "기상 · 활동 시작")
+        )
     }
 }

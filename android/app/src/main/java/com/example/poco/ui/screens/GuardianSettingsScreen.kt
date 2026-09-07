@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
@@ -34,6 +35,7 @@ import com.example.poco.ui.components.GuardianBottomNav
 import com.example.poco.ui.components.GuardianTab
 import com.example.poco.ui.theme.POCOTheme
 import com.example.poco.ui.theme.PocoDivider
+import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 
@@ -44,6 +46,7 @@ fun GuardianSettingsScreen(
     onOpenUserLinkInfo: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenLinkNewUser: () -> Unit,
+    onLogout: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
@@ -62,6 +65,12 @@ fun GuardianSettingsScreen(
                 GuardianSettingsRow(icon = Icons.Filled.Person, label = "사용자 연동 정보", onClick = onOpenUserLinkInfo)
                 GuardianSettingsRow(icon = Icons.Filled.NotificationsActive, label = "알림 수신 설정", onClick = onOpenNotificationSettings)
                 GuardianSettingsRow(icon = Icons.Filled.Link, label = "새 사용자 연동하기", onClick = onOpenLinkNewUser)
+                GuardianSettingsRow(
+                    icon = Icons.AutoMirrored.Filled.Logout,
+                    label = "로그아웃",
+                    labelColor = PocoRed,
+                    onClick = onLogout
+                )
             }
             GuardianBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
         }
@@ -69,7 +78,12 @@ fun GuardianSettingsScreen(
 }
 
 @Composable
-private fun GuardianSettingsRow(icon: ImageVector, label: String, onClick: () -> Unit) {
+private fun GuardianSettingsRow(
+    icon: ImageVector,
+    label: String,
+    labelColor: Color = PocoTextPrimary,
+    onClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -79,7 +93,7 @@ private fun GuardianSettingsRow(icon: ImageVector, label: String, onClick: () ->
     ) {
         Icon(imageVector = icon, contentDescription = null, tint = PocoTextMuted, modifier = Modifier.height(22.dp))
         Spacer(modifier = Modifier.width(12.dp))
-        Text(text = label, color = PocoTextPrimary, fontSize = 15.sp, modifier = Modifier.weight(1f))
+        Text(text = label, color = labelColor, fontSize = 15.sp, modifier = Modifier.weight(1f))
         Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = PocoTextMuted)
     }
     HorizontalDivider(color = PocoDivider, thickness = 1.dp, modifier = Modifier.padding(horizontal = 24.dp))
@@ -94,7 +108,8 @@ private fun GuardianSettingsScreenPreview() {
             onTabSelected = {},
             onOpenUserLinkInfo = {},
             onOpenNotificationSettings = {},
-            onOpenLinkNewUser = {}
+            onOpenLinkNewUser = {},
+            onLogout = {}
         )
     }
 }

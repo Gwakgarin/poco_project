@@ -88,11 +88,23 @@ class LocationStore(context: Context) {
         return if (role == -1) null else role
     }
 
+    /** 로그인한 사용자의 이름. 아직 로그인 전이면 null. */
+    fun currentUserName(): String? = preferences.getString(KEY_CURRENT_USER_NAME, null)
+
+    /** 로그인한 사용자의 이메일. 아직 로그인 전이면 null. */
+    fun currentUserEmail(): String? = preferences.getString(KEY_CURRENT_USER_EMAIL, null)
+
+    /** 로그인한 사용자의 가입일(서버 datetime 문자열). 아직 로그인 전이거나 서버가 안 내려줬으면 null. */
+    fun currentUserJoinedAt(): String? = preferences.getString(KEY_CURRENT_USER_JOINED_AT, null)
+
     /** 로그인/회원가입 응답을 받은 직후 이 함수로 세션을 저장한다. */
-    fun saveSession(userId: Long, role: Int) {
+    fun saveSession(userId: Long, role: Int, name: String, email: String, joinedAt: String?) {
         preferences.edit()
             .putLong(KEY_CURRENT_USER_ID, userId)
             .putInt(KEY_CURRENT_USER_ROLE, role)
+            .putString(KEY_CURRENT_USER_NAME, name)
+            .putString(KEY_CURRENT_USER_EMAIL, email)
+            .putString(KEY_CURRENT_USER_JOINED_AT, joinedAt)
             .apply()
     }
 
@@ -101,6 +113,9 @@ class LocationStore(context: Context) {
         preferences.edit()
             .remove(KEY_CURRENT_USER_ID)
             .remove(KEY_CURRENT_USER_ROLE)
+            .remove(KEY_CURRENT_USER_NAME)
+            .remove(KEY_CURRENT_USER_EMAIL)
+            .remove(KEY_CURRENT_USER_JOINED_AT)
             .remove(KEY_BACKEND_DEVICE_ID)
             .apply()
     }
@@ -119,5 +134,8 @@ class LocationStore(context: Context) {
         const val KEY_BACKEND_DEVICE_ID = "backend_device_id"
         const val KEY_CURRENT_USER_ID = "current_user_id"
         const val KEY_CURRENT_USER_ROLE = "current_user_role"
+        const val KEY_CURRENT_USER_NAME = "current_user_name"
+        const val KEY_CURRENT_USER_EMAIL = "current_user_email"
+        const val KEY_CURRENT_USER_JOINED_AT = "current_user_joined_at"
     }
 }

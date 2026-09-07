@@ -21,7 +21,6 @@ import androidx.compose.material.icons.filled.Group
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.NotificationsActive
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.ReportProblem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
@@ -41,7 +40,6 @@ import com.example.poco.ui.components.AppTab
 import com.example.poco.ui.theme.POCOTheme
 import com.example.poco.ui.theme.PocoCardBackground
 import com.example.poco.ui.theme.PocoDivider
-import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 
@@ -53,8 +51,6 @@ fun SettingsScreen(
     onOpenNotificationSettings: () -> Unit,
     onOpenGuardianLinkManagement: () -> Unit,
     onOpenAccountInfo: () -> Unit,
-    onOpenGuardianDemo: () -> Unit,
-    onOpenEmergencyDemo: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
@@ -79,22 +75,6 @@ fun SettingsScreen(
                 SettingsRow(icon = Icons.Filled.NotificationsActive, label = "알림 설정", onClick = onOpenNotificationSettings)
                 SettingsRow(icon = Icons.Filled.Group, label = "보호자 연동 관리", onClick = onOpenGuardianLinkManagement)
                 SettingsRow(icon = Icons.Filled.Person, label = "계정 정보", onClick = onOpenAccountInfo)
-
-                Spacer(modifier = Modifier.height(24.dp))
-                Text(
-                    text = "데모 미리보기",
-                    color = PocoTextMuted,
-                    fontSize = 13.sp,
-                    modifier = Modifier.padding(horizontal = 24.dp)
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                SettingsRow(icon = Icons.Filled.Group, label = "보호자 모드 미리보기", onClick = onOpenGuardianDemo)
-                SettingsRow(
-                    icon = Icons.Filled.ReportProblem,
-                    label = "긴급 상황 화면 미리보기",
-                    labelColor = PocoRed,
-                    onClick = onOpenEmergencyDemo
-                )
             }
             AppBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
         }
@@ -137,9 +117,7 @@ private fun SettingsScreenPreview() {
             onOpenMicSensitivity = {},
             onOpenNotificationSettings = {},
             onOpenGuardianLinkManagement = {},
-            onOpenAccountInfo = {},
-            onOpenGuardianDemo = {},
-            onOpenEmergencyDemo = {}
+            onOpenAccountInfo = {}
         )
     }
 }

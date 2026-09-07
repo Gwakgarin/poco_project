@@ -75,16 +75,49 @@ fun ActivityLogScreen(
                         .padding(top = 16.dp, bottom = 8.dp)
                 )
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    items(items) { item -> ActivityRow(item) }
+                if (items.isEmpty()) {
+                    EmptyActivityLog()
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxWidth(),
+                        contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 24.dp, vertical = 8.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(items) { item -> ActivityRow(item) }
+                    }
                 }
             }
             AppBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
         }
+    }
+}
+
+@Composable
+private fun EmptyActivityLog() {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(PocoCardBackground),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = Icons.Filled.VolumeUp, contentDescription = null, tint = PocoTextMuted, modifier = Modifier.size(28.dp))
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(text = "아직 기록된 활동이 없어요", color = PocoTextPrimary, fontSize = 16.sp, fontWeight = FontWeight.Medium)
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = "소리가 감지되고 하나의 행동으로 확정되면 여기에 표시돼요",
+            color = PocoTextMuted,
+            fontSize = 13.sp
+        )
     }
 }
 

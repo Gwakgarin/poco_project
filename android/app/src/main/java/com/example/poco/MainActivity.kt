@@ -186,6 +186,7 @@ private fun PocoRoot() {
                 HomeState.OUTSIDE -> "외출 중"
                 HomeState.UNKNOWN -> "위치 미확인"
             },
+            userName = locationStore.currentUserName() ?: "회원",
             locationSummary = latestLocation?.let { sample ->
                 val distance = homeDistanceMeters?.let { " · 집에서 %.0fm".format(it) }.orEmpty()
                 "정확도 ±%.0fm%s".format(sample.accuracyMeters, distance)

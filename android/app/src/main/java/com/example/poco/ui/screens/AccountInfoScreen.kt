@@ -41,7 +41,12 @@ import com.example.poco.ui.theme.PocoTextPrimary
 fun AccountInfoScreen(
     onBack: () -> Unit,
     onLogout: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    name: String = "회원",
+    email: String = "-",
+    joinedAtLabel: String = "-",
+    roleLabel: String = "사용자",
+    linkedGuardianCountLabel: String = "-"
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -60,19 +65,19 @@ fun AccountInfoScreen(
                     }
                     Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text(text = "김민수", color = PocoTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-                        Text(text = "minsu.kim@example.com", color = PocoTextMuted, fontSize = 13.sp)
+                        Text(text = name, color = PocoTextPrimary, fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                        Text(text = email, color = PocoTextMuted, fontSize = 13.sp)
                     }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 PocoCard {
-                    InfoRow(label = "가입일", value = "2026년 3월 2일")
+                    InfoRow(label = "가입일", value = joinedAtLabel)
                     HorizontalDivider(color = PocoDivider, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
-                    InfoRow(label = "역할", value = "사용자")
+                    InfoRow(label = "역할", value = roleLabel)
                     HorizontalDivider(color = PocoDivider, thickness = 1.dp, modifier = Modifier.padding(vertical = 10.dp))
-                    InfoRow(label = "연동된 보호자", value = "1명")
+                    InfoRow(label = "연동된 보호자", value = linkedGuardianCountLabel)
                 }
 
                 Spacer(modifier = Modifier.height(32.dp))
