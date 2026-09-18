@@ -317,6 +317,9 @@ interface PocoApi {
     @POST("/api/users/login")
     suspend fun login(@Body request: LoginRequest): LoginResponse
 
+    @GET("/api/users/{userId}")
+    suspend fun getUser(@Path("userId") userId: Long): UserResponse
+
     // ---- 기기 ----
     @POST("/api/devices")
     suspend fun registerDevice(@Body request: DeviceRequest): DeviceResponse

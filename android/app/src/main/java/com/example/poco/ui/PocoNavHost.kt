@@ -330,17 +330,16 @@ private fun signUpErrorMessage(throwable: Throwable): String {
     }
 }
 
-private data class MonitoredUser(val device: DeviceResponse, val relationLabel: String)
+private data class MonitoredUser(val device: DeviceResponse, val relationLabel: String, val name: String?)
 
 /** 보호자 화면들은 자기 자신의 backendDeviceId가 아니라, 연동된(GUARDIAN으로 링크된) 사용자의 기기를 봐야 한다.
  *  링크 목록에서 첫 번째 연동 사용자를 찾아 그 사용자의 기기 정보를 조회한다. */
 private suspend fun resolveMonitoredUser(locationStore: LocationStore): MonitoredUser? {
     val guardianId = locationStore.currentUserId() ?: return null
-    val link = runCatching { ServerApiClient.api.getMyLinks(guardianId, "GUARDIAN") }
-        .getOrDefault(emptyList())
-        .firstOrNull() ?: return null
-    val device = runCatching { ServerApiClient.api.getDeviceByUserId(link.userId) }.getOrNull() ?: return null
-    return MonitoredUser(device = device, relationLabel = link.relationLabel ?: "연동된 사용자")
+    val link = ServerApiClient.api.getMyLinks(guardianId, "GUARDIAN").firstOrNull() ?: return null
+    val device = ServerApiClient.api.getDeviceByUserId(link.userId)
+    val name = runCatching { ServerApiClient.api.getUser(link.userId).name }.getOrNull()
+    return MonitoredUser(device = device, relationLabel = link.relationLabel ?: "연동된 사용자", name = name)
 }
 
 /** epoch ms가 "오늘"(기기 로컬 자정~자정) 범위인지 확인한다. */
@@ -677,8 +676,8 @@ fun PocoNavHost(
             var latestAlert by remember { mutableStateOf<TimelineEntry?>(null) }
             var recentTimeline by remember { mutableStateOf(emptyList<TimelineEntry>()) }
             LaunchedEffect(Unit) {
-                val monitored = resolveMonitoredUser(locationStore) ?: return@LaunchedEffect
-                monitoredUserLabel = monitored.relationLabel
+                val monitored = runCatching { resolveMonitoredUser(locationStore) }.getOrNull() ?: return@LaunchedEffect
+                monitoredUserLabel = monitored.name?.let { "${it}님" } ?: monitored.relationLabel
                 micLabel = if (monitored.device.micOn) "ON" else "OFF"
                 gpsLabel = if (monitored.device.gpsOn == true) "ON" else "OFF"
                 batteryLabel = monitored.device.batteryPercent?.let { "$it%" } ?: "-"
@@ -744,7 +743,7 @@ fun PocoNavHost(
             var timeline by remember { mutableStateOf(emptyList<TimelineEntry>()) }
             var sleepDurationLabel by remember { mutableStateOf("-") }
             LaunchedEffect(Unit) {
-                val deviceId = resolveMonitoredUser(locationStore)?.device?.id ?: return@LaunchedEffect
+                val deviceId = runCatching { resolveMonitoredUser(locationStore) }.getOrNull()?.device?.id ?: return@LaunchedEffect
                 val sessions = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }.getOrDefault(emptyList())
                 val alerts = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
                 val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
@@ -775,7 +774,14 @@ fun PocoNavHost(
             var hourlyRhythm by remember { mutableStateOf(List(24) { 0 }) }
             var trendState by remember { mutableStateOf<TrendUiState>(TrendUiState.Loading) }
             LaunchedEffect(Unit) {
-                val deviceId = resolveMonitoredUser(locationStore)?.device?.id ?: return@LaunchedEffect
+                val monitoredResult = runCatching { resolveMonitoredUser(locationStore) }
+                val deviceId = monitoredResult.getOrNull()?.device?.id
+                if (deviceId == null) {
+                    if (monitoredResult.isFailure) {
+                        trendState = TrendUiState.Error("서버에 연결할 수 없어요. 잠시 후 다시 시도해주세요.")
+                    }
+                    return@LaunchedEffect
+                }
 
                 // behavior_sessions·outing_events·sleep_wake_events·danger_alerts를 병렬로 조회.
                 // 전부 성공해야만 화면을 보여주는 구조는 피한다 — 각 API의 성공/빈 데이터/실패를 그대로
@@ -806,7 +812,7 @@ fun PocoNavHost(
             var anomalies by remember { mutableStateOf(emptyList<AnomalyAlert>()) }
             var generalNotices by remember { mutableStateOf(emptyList<GeneralNotice>()) }
             LaunchedEffect(Unit) {
-                val deviceId = resolveMonitoredUser(locationStore)?.device?.id ?: return@LaunchedEffect
+                val deviceId = runCatching { resolveMonitoredUser(locationStore) }.getOrNull()?.device?.id ?: return@LaunchedEffect
 
                 // 일반 알림: 조회만 하면 서버가 오늘자 배터리부족/일일요약을 규칙으로 채워서 돌려준다(NoticeService 참고).
                 runCatching { ServerApiClient.api.getNotices(deviceId) }
