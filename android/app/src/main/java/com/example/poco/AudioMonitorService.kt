@@ -248,57 +248,67 @@ class AudioMonitorService : Service() {
 
     private fun processSegment(samples: ShortArray) {
         val wavFile = saveWav(samples)
-        val waveform = samples.toFloatWaveform()
+        try {
+            val waveform = samples.toFloatWaveform()
 
-        Log.d("POCO", "AudioMonitorService classification started")
-        val yamnetOutput = YamNetEmbedder(applicationContext).use { it.extract(waveform) }
-        val result = PocoClassifier(applicationContext).use { it.classify(yamnetOutput.meanEmbedding) }
+            Log.d("POCO", "AudioMonitorService classification started")
+            val yamnetOutput = YamNetEmbedder(applicationContext).use { it.extract(waveform) }
+            val result = PocoClassifier(applicationContext).use { it.classify(yamnetOutput.meanEmbedding) }
 
-        // YAMNet 네이티브 출력(Speech/Conversation/Television) 중 max 값을 인지 세션 판정에 사용.
-        // 커스텀 분류기(result)와는 별개로, 오늘은 이 값이 실제로 잘 나오는지만 확인하면 됨.
-        val cognitiveScore = maxOf(
-            yamnetOutput.meanScores[YamNetEmbedder.SPEECH_INDEX],
-            yamnetOutput.meanScores[YamNetEmbedder.CONVERSATION_INDEX],
-            yamnetOutput.meanScores[YamNetEmbedder.TELEVISION_INDEX]
-        )
-        val isCognitive = cognitiveScore >= COGNITIVE_THRESHOLD
+            // YAMNet 네이티브 출력(Speech/Conversation/Television) 중 max 값을 인지 세션 판정에 사용.
+            // 커스텀 분류기(result)와는 별개로, 오늘은 이 값이 실제로 잘 나오는지만 확인하면 됨.
+            val cognitiveScore = maxOf(
+                yamnetOutput.meanScores[YamNetEmbedder.SPEECH_INDEX],
+                yamnetOutput.meanScores[YamNetEmbedder.CONVERSATION_INDEX],
+                yamnetOutput.meanScores[YamNetEmbedder.TELEVISION_INDEX]
+            )
+            val isCognitive = cognitiveScore >= COGNITIVE_THRESHOLD
 
-        // 세션 상태머신에 이 세그먼트의 감지 결과를 흘려보낸다 (식사/청소/세탁/설거지는 라벨 기준, 인지는 별도 점수 기준).
-        val now = System.currentTimeMillis()
-        mealSession.processEvent(result.label, now)
-        dishwashingSession.processEvent(result.label, now)
-        laundrySession.processEvent(result.label, now)
-        cleaningSession.processEvent(result.label, now)
-        cognitiveSession.processEvent(isCognitive, now)
-        sleepDetector.onSoundEvent(result.label, now)
+            // 세션 상태머신에 이 세그먼트의 감지 결과를 흘려보낸다 (식사/청소/세탁/설거지는 라벨 기준, 인지는 별도 점수 기준).
+            val now = System.currentTimeMillis()
+            mealSession.processEvent(result.label, now)
+            dishwashingSession.processEvent(result.label, now)
+            laundrySession.processEvent(result.label, now)
+            cleaningSession.processEvent(result.label, now)
+            cognitiveSession.processEvent(isCognitive, now)
+            sleepDetector.onSoundEvent(result.label, now)
 
-        Log.d(
-            "POCO",
-            "AudioMonitorService classification result=${result.label} score=${result.score} " +
-                    "| speech=${yamnetOutput.meanScores[YamNetEmbedder.SPEECH_INDEX]} " +
-                    "conversation=${yamnetOutput.meanScores[YamNetEmbedder.CONVERSATION_INDEX]} " +
-                    "television=${yamnetOutput.meanScores[YamNetEmbedder.TELEVISION_INDEX]} " +
-                    "cognitiveScore=$cognitiveScore isCognitive=$isCognitive"
-        )
+            Log.d(
+                "POCO",
+                "AudioMonitorService classification result=${result.label} score=${result.score} " +
+                        "| speech=${yamnetOutput.meanScores[YamNetEmbedder.SPEECH_INDEX]} " +
+                        "conversation=${yamnetOutput.meanScores[YamNetEmbedder.CONVERSATION_INDEX]} " +
+                        "television=${yamnetOutput.meanScores[YamNetEmbedder.TELEVISION_INDEX]} " +
+                        "cognitiveScore=$cognitiveScore isCognitive=$isCognitive"
+            )
 
-        sendResult(result, wavFile, "분류 완료: 서버 저장 전")
+            sendResult(result, wavFile, "분류 완료: 서버 저장 전")
 
-        val soundServerStatus = try {
-            postSoundEvent(result, wavFile)
-        } catch (t: Throwable) {
-            Log.e("POCO", "AudioMonitorService server save failed", t)
-            "Server save failed: ${t.message ?: t::class.java.simpleName}"
+            val soundServerStatus = try {
+                postSoundEvent(result, wavFile)
+            } catch (t: Throwable) {
+                Log.e("POCO", "AudioMonitorService server save failed", t)
+                "Server save failed: ${t.message ?: t::class.java.simpleName}"
+            }
+            val dangerStatus = try {
+                postDangerAlertIfNeeded(result.label)
+            } catch (t: Throwable) {
+                Log.e("POCO", "Danger alert save failed", t)
+                "Danger alert failed: ${t.message ?: t::class.java.simpleName}"
+            }
+            val serverStatus = listOfNotNull(soundServerStatus, dangerStatus).joinToString(" / ")
+            Log.d("POCO", "AudioMonitorService $serverStatus")
+
+            sendResult(result, wavFile, serverStatus)
+        } finally {
+            // 분석이 끝나면(에러가 나도) 로컬에 남긴 wav는 항상 지운다. 서버에는 원래도 파일명만 보내고
+            // 오디오 바이트 자체는 보내지 않으므로, 기기에도 오디오가 남지 않게 하는 게 목적.
+            if (wavFile.delete()) {
+                Log.d("POCO", "AudioMonitorService wav deleted: ${wavFile.name}")
+            } else if (wavFile.exists()) {
+                Log.w("POCO", "AudioMonitorService wav delete failed: ${wavFile.name}")
+            }
         }
-        val dangerStatus = try {
-            postDangerAlertIfNeeded(result.label)
-        } catch (t: Throwable) {
-            Log.e("POCO", "Danger alert save failed", t)
-            "Danger alert failed: ${t.message ?: t::class.java.simpleName}"
-        }
-        val serverStatus = listOfNotNull(soundServerStatus, dangerStatus).joinToString(" / ")
-        Log.d("POCO", "AudioMonitorService $serverStatus")
-
-        sendResult(result, wavFile, serverStatus)
     }
 
     private fun calculateDb(buffer: ShortArray, sampleCount: Int): Double {
