@@ -1,6 +1,5 @@
+import json
 import os
-import pickle
-import joblib
 from pathlib import Path
 
 import librosa
@@ -19,7 +18,8 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 TEST_RAW_DIR = PROJECT_ROOT / "data" / "test_raw"
 TEST_SPLIT_DIR = PROJECT_ROOT / "data" / "test_split_5s"
 TEST_EMB_DIR = PROJECT_ROOT / "data" / "test_embeddings"
-MODEL_PATH = PROJECT_ROOT / "models" / "classifier.pkl"
+MODEL_PATH = PROJECT_ROOT / "models" / "classifier.keras"
+LABEL_MAP_PATH = PROJECT_ROOT / "models" / "label_map.json"
 RESULT_CSV = PROJECT_ROOT / "data" / "test_predictions.csv"
 
 TEST_SPLIT_DIR.mkdir(parents=True, exist_ok=True)
@@ -92,6 +92,9 @@ def main():
     if not MODEL_PATH.exists():
         raise FileNotFoundError(f"모델 파일이 없습니다: {MODEL_PATH}")
 
+    if not LABEL_MAP_PATH.exists():
+        raise FileNotFoundError(f"label_map.json 파일이 없습니다: {LABEL_MAP_PATH}")
+
     if not TEST_RAW_DIR.exists():
         raise FileNotFoundError(f"테스트 원본 폴더가 없습니다: {TEST_RAW_DIR}")
 
@@ -104,7 +107,10 @@ def main():
         raise ValueError(f"테스트할 오디오 파일이 없습니다: {TEST_RAW_DIR}")
 
     # 분류기 로드
-    model = joblib.load(MODEL_PATH)
+    model = tf.keras.models.load_model(MODEL_PATH)
+
+    with open(LABEL_MAP_PATH, "r", encoding="utf-8") as f:
+        label_map = {int(k): v for k, v in json.load(f).items()}
 
     records = []
 
@@ -140,13 +146,10 @@ def main():
             emb_path = emb_subdir / f"{split_file.stem}.npy"
             np.save(str(emb_path), emb)
 
-            pred_label = model.predict([emb])[0]
-
-            # 일부 sklearn 모델은 predict_proba 지원
-            pred_score = None
-            if hasattr(model, "predict_proba"):
-                proba = model.predict_proba([emb])[0]
-                pred_score = float(np.max(proba))
+            proba = model.predict(emb.reshape(1, -1), verbose=0)[0]
+            pred_index = int(np.argmax(proba))
+            pred_label = label_map.get(pred_index, "UNKNOWN")
+            pred_score = float(np.max(proba))
 
             file_preds.append(pred_label)
 

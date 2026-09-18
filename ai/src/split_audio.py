@@ -10,8 +10,9 @@ SEGMENT_SECONDS = 5
 MIN_LAST_SECONDS = SEGMENT_SECONDS
 SUPPORTED_EXTENSIONS = (".wav", ".mp3", ".m4a", ".flac", ".ogg")
 
-def split_audio_file(file_path, output_dir, target_sr=16000, segment_seconds=5, min_last_seconds=None):
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
+def split_audio_file(file_path, output_dir, target_sr=16000, segment_seconds=5, min_last_seconds=None, base_name=None):
+    if base_name is None:
+        base_name = os.path.splitext(os.path.basename(file_path))[0]
     y, sr = librosa.load(file_path, sr=target_sr, mono=True)
     if min_last_seconds is None:
         min_last_seconds = segment_seconds
@@ -52,24 +53,31 @@ def split_all_audios(input_root, output_root):
         
         output_label_dir = os.path.join(output_root, label)
         os.makedirs(output_label_dir, exist_ok=True)
-        for fname in os.listdir(label_path):
-            if not fname.lower().endswith(SUPPORTED_EXTENSIONS):
-                continue
-            
-            file_path = os.path.join(label_path, fname)
-            
-            try:
-                saved_files = split_audio_file(
-                    file_path=file_path,
-                    output_dir=output_label_dir,
-                    target_sr=TARGET_SR,
-                    segment_seconds=SEGMENT_SECONDS,
-                    min_last_seconds=MIN_LAST_SECONDS
-                )
-                print(f"[완료] {label}/{fname} -> {len(saved_files)}개")
-                
-            except Exception as e:
-                print(f"[에러] {label}/{fname}: {e}")
+
+        for current_dir, _, fnames in os.walk(label_path):
+            rel_dir = os.path.relpath(current_dir, label_path)
+            # other/appliance 처럼 하위 폴더로 나뉜 라벨은 폴더명을 파일명 앞에 붙여 충돌을 막는다
+            prefix = "" if rel_dir == "." else rel_dir.replace(os.sep, "_") + "_"
+
+            for fname in sorted(fnames):
+                if not fname.lower().endswith(SUPPORTED_EXTENSIONS):
+                    continue
+
+                file_path = os.path.join(current_dir, fname)
+
+                try:
+                    saved_files = split_audio_file(
+                        file_path=file_path,
+                        output_dir=output_label_dir,
+                        target_sr=TARGET_SR,
+                        segment_seconds=SEGMENT_SECONDS,
+                        min_last_seconds=MIN_LAST_SECONDS,
+                        base_name=prefix + os.path.splitext(fname)[0]
+                    )
+                    print(f"[완료] {label}/{prefix}{fname} -> {len(saved_files)}개")
+
+                except Exception as e:
+                    print(f"[에러] {label}/{prefix}{fname}: {e}")
 
 if __name__ == "__main__":
     split_all_audios(INPUT_ROOT, OUTPUT_ROOT)
