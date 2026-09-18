@@ -392,7 +392,42 @@ interface PocoApi {
 
     @GET("/api/outing-events")
     suspend fun getOutingEvents(@Query("deviceId") deviceId: Long): List<OutingEventResponse>
+
+    // ---- 일반 알림(일일요약/배터리부족) : 조회 전용 — 서버가 조회 시점에 규칙으로 채워줌 ----
+    @GET("/api/notices")
+    suspend fun getNotices(@Query("deviceId") deviceId: Long): List<NoticeResponse>
+
+    // ---- 이상탐지 알림(식사불규칙/외출감소/인지활동감소) ----
+    @POST("/api/alerts")
+    suspend fun createAlert(@Body request: AlertRequest): AlertResponse
+
+    @GET("/api/alerts")
+    suspend fun getAlerts(@Query("deviceId") deviceId: Long): List<AlertResponse>
 }
+
+data class NoticeResponse(
+    val id: Long? = null,
+    val deviceId: Long? = null,
+    val time: String? = null,
+    val title: String? = null,
+    val description: String? = null
+)
+
+/** type: "MEAL_IRREGULAR" | "OUTING_DECREASE" | "COGNITIVE_DECREASE" (AlertType.java와 동일) */
+data class AlertRequest(
+    val deviceId: Long,
+    val type: String,
+    val time: String,
+    val evidence: String
+)
+
+data class AlertResponse(
+    val id: Long? = null,
+    val deviceId: Long? = null,
+    val type: String? = null,
+    val time: String? = null,
+    val evidence: String? = null
+)
 
 object ServerApiClient {
     // TODO: AWS 배포되면 여기를 실제 서버 주소로 바꿔주세요. 예: "http://<AWS 공인IP>:8080/"

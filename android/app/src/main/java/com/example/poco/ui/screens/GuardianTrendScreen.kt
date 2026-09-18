@@ -46,13 +46,10 @@ import com.example.poco.ui.components.GuardianTab
 import com.example.poco.ui.components.PocoCard
 import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.theme.POCOTheme
-import com.example.poco.ui.theme.PocoAmber
 import com.example.poco.ui.theme.PocoCardBackground
-import com.example.poco.ui.theme.PocoDivider
 import com.example.poco.ui.theme.PocoGreen
 import com.example.poco.ui.theme.PocoNavy
 import com.example.poco.ui.theme.PocoNavyAccent
-import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 
@@ -60,79 +57,11 @@ enum class TrendPeriod(val label: String) {
     WEEK("1주"), MONTH("1개월"), HALF_YEAR("6개월")
 }
 
-private data class TrendSeries(
+/** 1주 · 1개월 · 6개월 장기 추세 그래프가 쓰는 시계열. 실데이터 기준으로 [TrendAggregator]가 채운다. */
+data class TrendSeries(
     val xLabels: List<String>,
     val outing: List<Float>,
     val housework: List<Float>
-)
-
-private val trendSeriesByPeriod = mapOf(
-    TrendPeriod.WEEK to TrendSeries(
-        xLabels = listOf("월", "화", "수", "목", "금", "토", "일"),
-        outing = listOf(1f, 0f, 2f, 1f, 1f, 0f, 1f),
-        housework = listOf(3f, 2f, 4f, 3f, 2f, 1f, 3f)
-    ),
-    TrendPeriod.MONTH to TrendSeries(
-        xLabels = listOf("1주", "2주", "3주", "4주"),
-        outing = listOf(5f, 4f, 3f, 2f),
-        housework = listOf(14f, 12f, 10f, 9f)
-    ),
-    TrendPeriod.HALF_YEAR to TrendSeries(
-        xLabels = listOf("2월", "3월", "4월", "5월", "6월", "7월"),
-        outing = listOf(22f, 20f, 18f, 15f, 12f, 9f),
-        housework = listOf(60f, 58f, 50f, 45f, 40f, 35f)
-    )
-)
-
-private data class CognitiveBarMetric(val label: String, val value: Float, val max: Float, val unit: String)
-
-private val cognitiveMetricsByPeriod = mapOf(
-    TrendPeriod.WEEK to listOf(
-        CognitiveBarMetric("반복 행동 횟수", 6f, 20f, "회/주"),
-        CognitiveBarMetric("불규칙 식사 오차율", 32f, 100f, "%"),
-        CognitiveBarMetric("낮 시간 무활동 비율", 18f, 100f, "%"),
-        CognitiveBarMetric("인지 자극 활동 감소 수준", 15f, 100f, "%")
-    ),
-    TrendPeriod.MONTH to listOf(
-        CognitiveBarMetric("반복 행동 횟수", 9f, 20f, "회/주"),
-        CognitiveBarMetric("불규칙 식사 오차율", 41f, 100f, "%"),
-        CognitiveBarMetric("낮 시간 무활동 비율", 27f, 100f, "%"),
-        CognitiveBarMetric("인지 자극 활동 감소 수준", 33f, 100f, "%")
-    ),
-    TrendPeriod.HALF_YEAR to listOf(
-        CognitiveBarMetric("반복 행동 횟수", 14f, 20f, "회/주"),
-        CognitiveBarMetric("불규칙 식사 오차율", 55f, 100f, "%"),
-        CognitiveBarMetric("낮 시간 무활동 비율", 38f, 100f, "%"),
-        CognitiveBarMetric("인지 자극 활동 감소 수준", 47f, 100f, "%")
-    )
-)
-
-private val aiSummaryByPeriod = mapOf(
-    TrendPeriod.WEEK to "이번 주는 오후 활동량이 지난주보다 다소 줄었지만 전반적인 생활 리듬은 안정적으로 유지되고 있어요. " +
-        "화요일 오후에 3시간 이상 움직임이 없었던 점을 제외하면 특이 신호는 없었습니다.",
-    TrendPeriod.MONTH to "최근 1개월간 외출 빈도 43% 감소와 반복 행동 증가가 관찰됩니다. " +
-        "이는 사회적 고립 및 인지 자극 부족의 징후일 수 있습니다.",
-    TrendPeriod.HALF_YEAR to "최근 6개월간 외출 횟수와 가사 활동량이 꾸준히 감소하는 추세이며, " +
-        "인지 자극 활동 감소 수준도 함께 높아지고 있어 정기적인 대면 진료 상담을 권장드립니다."
-)
-
-private data class KeyMetricChange(val label: String, val delta: String, val isWorsening: Boolean)
-
-private val keyMetricChangesByPeriod = mapOf(
-    TrendPeriod.WEEK to listOf(
-        KeyMetricChange("무활동 지속 시간", "+1건 (3시간 이상)", true),
-        KeyMetricChange("수면 패턴", "지난주와 비슷", false)
-    ),
-    TrendPeriod.MONTH to listOf(
-        KeyMetricChange("외출 빈도", "-43% (4주 평균 대비)", true),
-        KeyMetricChange("반복 행동", "+3회 (4주 평균 대비)", true),
-        KeyMetricChange("인지 자극 활동", "-47%", true)
-    ),
-    TrendPeriod.HALF_YEAR to listOf(
-        KeyMetricChange("외출 횟수", "-59% (2월 대비)", true),
-        KeyMetricChange("가사 활동량", "-42% (2월 대비)", true),
-        KeyMetricChange("인지 자극 활동 감소 수준", "+32%p", true)
-    )
 )
 
 /** 실데이터가 없을 때(요청 실패 등)만 쓰는 자리표시 값. 실사용 시엔 항상 GuardianTrendScreen의 hourlyRhythm 파라미터로 대체됨. */
@@ -143,11 +72,10 @@ fun GuardianTrendScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
     modifier: Modifier = Modifier,
-    hourlyRhythm: List<Int> = defaultHourlyRhythm
+    hourlyRhythm: List<Int> = defaultHourlyRhythm,
+    trendState: TrendUiState = TrendUiState.Loading
 ) {
     var selectedPeriod by remember { mutableStateOf(TrendPeriod.WEEK) }
-    val series = trendSeriesByPeriod.getValue(selectedPeriod)
-    val cognitiveMetrics = cognitiveMetricsByPeriod.getValue(selectedPeriod)
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -161,13 +89,36 @@ fun GuardianTrendScreen(
                         PeriodToggleRow(selected = selectedPeriod, onSelect = { selectedPeriod = it })
                     }
                     item { DailyRhythmCard(hourlyRhythm = hourlyRhythm) }
-                    item { LongTermTrendCard(period = selectedPeriod, series = series) }
-                    item { CognitiveMetricsCard(metrics = cognitiveMetrics) }
-                    item {
-                        AiSummaryCard(
-                            summaryText = aiSummaryByPeriod.getValue(selectedPeriod),
-                            keyChanges = keyMetricChangesByPeriod.getValue(selectedPeriod)
-                        )
+                    when (trendState) {
+                        is TrendUiState.Loading -> {
+                            item { TrendStatusCard("장기 추세 데이터를 불러오는 중이에요...") }
+                        }
+                        is TrendUiState.Error -> {
+                            item { TrendStatusCard(trendState.message) }
+                        }
+                        is TrendUiState.Ready -> {
+                            val series = trendState.trendSeriesByPeriod[selectedPeriod]
+                            val analysis = trendState.analysisByPeriod[selectedPeriod]
+                            item {
+                                if (series != null) LongTermTrendCard(period = selectedPeriod, series = series)
+                                else TrendStatusCard("아직 기록된 데이터가 없어요")
+                            }
+                            item {
+                                if (analysis != null) LifeRegularityCard(analysis, trendState.sleepState)
+                                else TrendStatusCard("아직 기록된 데이터가 없어요")
+                            }
+                            if (analysis != null) {
+                                item {
+                                    KeyChangesCard(
+                                        keyChanges = analysis.keyChanges,
+                                        validDaysCurrent = analysis.validDaysCurrent,
+                                        validDaysPrevious = analysis.validDaysPrevious,
+                                        dangerState = trendState.dangerState
+                                    )
+                                }
+                                item { LifePatternSummaryCard(analysis.summarySentences) }
+                            }
+                        }
                     }
                     item { Spacer(modifier = Modifier.height(4.dp)) }
                 }
@@ -302,44 +253,134 @@ private fun LegendDot(color: Color, label: String) {
     }
 }
 
+/** 로딩 · 오류 · "아직 계산 못하는 지표" 공용 안내 카드. 가짜 숫자 대신 상태를 그대로 보여준다. */
 @Composable
-private fun CognitiveMetricsCard(metrics: List<CognitiveBarMetric>) {
+private fun TrendStatusCard(message: String) {
     PocoCard(modifier = Modifier.fillMaxWidth()) {
-        CardTitle("인지 행동 지표")
-        Spacer(modifier = Modifier.height(14.dp))
-        Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            metrics.forEach { metric ->
-                val ratio = (metric.value / metric.max).coerceIn(0f, 1f)
-                val barColor = when {
-                    ratio >= 0.45f -> PocoRed
-                    ratio >= 0.25f -> PocoAmber
-                    else -> PocoGreen
-                }
-                Column {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(text = metric.label, color = PocoTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                        Text(
-                            text = "${if (metric.value % 1f == 0f) metric.value.toInt() else metric.value}${metric.unit}",
-                            color = barColor,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+        Text(text = message, color = PocoTextMuted, fontSize = 13.sp)
+    }
+}
+
+/** 규칙성 값 옆에 붙는 상태 라벨. 색상만으로 좋고 나쁨을 구분하지 않도록 항상 텍스트로 표시한다. */
+@Composable
+private fun regularityLabel(level: RegularityLevel): String = when (level) {
+    RegularityLevel.INSUFFICIENT -> "기록 부족"
+    RegularityLevel.STABLE -> "비교적 일정"
+    RegularityLevel.SOMEWHAT_VARIABLE -> "다소 변동"
+    RegularityLevel.HIGHLY_VARIABLE -> "변동이 큼"
+}
+
+private fun formatMinutesAsClock(minutes: Double): String {
+    val m = ((minutes % 1440) + 1440) % 1440
+    val h = (m / 60).toInt()
+    val mm = (m % 60).toInt()
+    return "%02d:%02d".format(h, mm)
+}
+
+/** "생활 규칙성 및 활동 변화" — 식사·수면·짧은 간격의 동일 활동·대화·미디어 활동을 한 카드에 모아 보여준다. */
+@Composable
+private fun LifeRegularityCard(analysis: TrendAnalysis, sleepState: TrendSourceState) {
+    PocoCard(modifier = Modifier.fillMaxWidth()) {
+        CardTitle("생활 규칙성 및 활동 변화")
+        Spacer(modifier = Modifier.height(4.dp))
+        if (analysis.validDaysCurrent < 4) {
+            Text(text = "아직 기록된 데이터가 없어요", color = PocoTextMuted, fontSize = 12.5.sp)
+            return@PocoCard
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+
+        MetricRow("하루 평균 식사 기록", analysis.meal.dailyAverage?.let { "%.1f회".format(it) } ?: "데이터 없음")
+        MetricRow("식사 기록 미확인일", "${analysis.meal.daysWithoutMealRecord}일")
+        MetricRow("식사 시간 규칙성", regularityLabel(analysis.meal.regularityLevel))
+
+        Spacer(modifier = Modifier.height(10.dp))
+        HorizontalDividerLine()
+        Spacer(modifier = Modifier.height(10.dp))
+
+        when (sleepState) {
+            is TrendSourceState.Error -> Text(text = sleepState.message, color = PocoTextMuted, fontSize = 12.5.sp)
+            is TrendSourceState.Empty -> {
+                MetricRow("평균 수면 시간", "아직 기록된 데이터가 없어요")
+            }
+            is TrendSourceState.Success -> {
+                MetricRow("평균 수면 시간", analysis.sleep.averageDurationMinutes?.let { "%.1f시간".format(it / 60.0) } ?: "데이터 없음")
+                MetricRow(
+                    "취침 규칙성",
+                    if (analysis.sleep.regularityLevel == RegularityLevel.INSUFFICIENT) "수면 기록이 부족해요"
+                    else regularityLabel(analysis.sleep.regularityLevel) + (analysis.sleep.averageSleepStartMinutes?.let { " (평균 ${formatMinutesAsClock(it)})" } ?: "")
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+        HorizontalDividerLine()
+        Spacer(modifier = Modifier.height(10.dp))
+
+        MetricRow("짧은 간격의 동일 활동", "${analysis.repeatedActivity.count}회")
+        Text(
+            text = "짧은 간격에 같은 활동이 다시 기록된 횟수예요. 센서 감지 결과이므로 실제 행동과 다를 수 있어요.",
+            color = PocoTextMuted, fontSize = 11.sp, lineHeight = 15.sp
+        )
+
+        Spacer(modifier = Modifier.height(10.dp))
+        HorizontalDividerLine()
+        Spacer(modifier = Modifier.height(10.dp))
+
+        MetricRow("대화·미디어 활동", analysis.media.dailyAverageMinutes?.let { "일평균 %.0f분".format(it) } ?: "데이터 없음")
+        Text(
+            text = "대화·미디어 관련 소리가 감지된 시간이에요. 실제 인지 활동량과는 차이가 있을 수 있어요.",
+            color = PocoTextMuted, fontSize = 11.sp, lineHeight = 15.sp
+        )
+    }
+}
+
+@Composable
+private fun MetricRow(label: String, value: String) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(text = label, color = PocoTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Medium)
+        Text(text = value, color = PocoTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+    }
+    Spacer(modifier = Modifier.height(6.dp))
+}
+
+@Composable
+private fun HorizontalDividerLine() {
+    Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(PocoCardBackground))
+}
+
+/** "주요 변화" — 최대 3개. 증가/감소를 색상에만 의존하지 않도록 화살표 기호 + 문장을 함께 쓴다. */
+@Composable
+private fun KeyChangesCard(
+    keyChanges: List<KeyChangeItem>,
+    validDaysCurrent: Int,
+    validDaysPrevious: Int,
+    dangerState: TrendSourceState
+) {
+    PocoCard(modifier = Modifier.fillMaxWidth()) {
+        CardTitle("주요 변화")
+        if (dangerState is TrendSourceState.Error) {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(text = dangerState.message, color = PocoTextMuted, fontSize = 11.sp)
+        }
+        Spacer(modifier = Modifier.height(10.dp))
+        when {
+            validDaysCurrent < 4 || validDaysPrevious < 4 ->
+                Text(text = "비교할 기록이 아직 부족해요", color = PocoTextMuted, fontSize = 12.5.sp)
+            keyChanges.isEmpty() ->
+                Text(text = "이전 기간과 비교해 큰 변화가 확인되지 않았어요.", color = PocoTextMuted, fontSize = 12.5.sp)
+            else -> Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                keyChanges.forEach { item ->
+                    val glyph = when {
+                        item.description.contains("늘었") -> "▲"
+                        item.description.contains("줄었") -> "▼"
+                        else -> "■"
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(PocoDivider)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(ratio)
-                                .height(8.dp)
-                                .clip(RoundedCornerShape(4.dp))
-                                .background(barColor)
-                        )
+                    Row {
+                        Text(text = glyph, color = PocoTextMuted, fontSize = 13.sp, modifier = Modifier.padding(end = 6.dp))
+                        Column {
+                            Text(text = item.label, color = PocoTextPrimary, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            Text(text = item.description, color = PocoTextMuted, fontSize = 12.sp)
+                        }
                     }
                 }
             }
@@ -347,8 +388,9 @@ private fun CognitiveMetricsCard(metrics: List<CognitiveBarMetric>) {
     }
 }
 
+/** "생활 패턴 요약" — 규칙 기반 문장(최대 3개) + 비진단 고지. LLM 호출 없음. */
 @Composable
-private fun AiSummaryCard(summaryText: String, keyChanges: List<KeyMetricChange>) {
+private fun LifePatternSummaryCard(sentences: List<String>) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -367,63 +409,45 @@ private fun AiSummaryCard(summaryText: String, keyChanges: List<KeyMetricChange>
                 Icon(imageVector = Icons.Filled.AutoAwesome, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
             Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "AI 요약 보고서", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+            Text(text = "생활 패턴 요약", color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold)
         }
         Spacer(modifier = Modifier.height(12.dp))
-        Text(
-            text = summaryText,
-            color = Color.White.copy(alpha = 0.92f),
-            fontSize = 13.sp,
-            lineHeight = 19.sp
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Text(text = "주요 변화 지표 요약", color = Color.White.copy(alpha = 0.7f), fontSize = 12.sp, fontWeight = FontWeight.Bold)
-        Spacer(modifier = Modifier.height(8.dp))
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            keyChanges.forEach { change ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(text = change.label, color = Color.White.copy(alpha = 0.85f), fontSize = 12.5.sp)
-                    Text(
-                        text = change.delta,
-                        color = if (change.isWorsening) Color(0xFFFF9B9B) else Color.White.copy(alpha = 0.85f),
-                        fontSize = 12.5.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+            sentences.forEach { s ->
+                Text(text = s, color = Color.White.copy(alpha = 0.92f), fontSize = 13.sp, lineHeight = 19.sp)
             }
         }
-
-        Spacer(modifier = Modifier.height(16.dp))
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(Color.White.copy(alpha = 0.12f))
-                .clickable { /* TODO: PDF 내보내기 — 다음 단계에서 연동 예정 */ }
-                .padding(vertical = 13.dp),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(imageVector = Icons.Filled.PictureAsPdf, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(text = "진료 자료 PDF 내보내기", color = Color.White, fontSize = 13.5.sp, fontWeight = FontWeight.Bold)
-        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            text = TREND_NON_DIAGNOSTIC_NOTICE,
+            color = Color.White.copy(alpha = 0.6f),
+            fontSize = 10.5.sp,
+            lineHeight = 14.sp
+        )
     }
 }
 
-@Preview(showBackground = true, widthDp = 412, heightDp = 1500)
+@Preview(showBackground = true, widthDp = 412, heightDp = 1200)
 @Composable
 private fun GuardianTrendScreenPreview() {
+    val sampleSeries = TrendSeries(
+        xLabels = listOf("월", "화", "수", "목", "금", "토", "일"),
+        outing = listOf(1f, 0f, 2f, 1f, 1f, 0f, 1f),
+        housework = listOf(3f, 2f, 4f, 3f, 2f, 1f, 3f)
+    )
     POCOTheme {
         GuardianTrendScreen(
             selectedTab = GuardianTab.TREND,
             onTabSelected = {},
-            hourlyRhythm = listOf(2, 1, 0, 0, 0, 1, 3, 6, 8, 7, 6, 8, 9, 7, 6, 8, 9, 8, 7, 6, 5, 4, 3, 2)
+            hourlyRhythm = listOf(2, 1, 0, 0, 0, 1, 3, 6, 8, 7, 6, 8, 9, 7, 6, 8, 9, 8, 7, 6, 5, 4, 3, 2),
+            trendState = TrendUiState.Ready(
+                analysisByPeriod = TrendPeriod.entries.associateWith {
+                    TrendAggregator.analyze(it, emptyList(), emptyList(), emptyList(), emptyList())
+                },
+                trendSeriesByPeriod = TrendPeriod.entries.associateWith { sampleSeries },
+                sleepState = TrendSourceState.Empty,
+                dangerState = TrendSourceState.Empty
+            )
         )
     }
 }

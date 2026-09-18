@@ -9,6 +9,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.BatteryAlert
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Restaurant
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.runtime.Composable
@@ -25,7 +27,10 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.example.poco.BehaviorSessionResponse
+import com.example.poco.AlertRequest
+import com.example.poco.AlertResponse
 import com.example.poco.DangerAlertResponse
+import com.example.poco.NoticeResponse
 import com.example.poco.DeviceRequest
 import com.example.poco.DeviceResponse
 import com.example.poco.EmergencyDispatchRequest
@@ -38,7 +43,9 @@ import com.example.poco.SleepWakeEventResponse
 import com.example.poco.SoundEventResponse
 import com.example.poco.UserLinkResponse
 import com.example.poco.fromServerDateTime
+import com.example.poco.toServerDateTime
 import com.example.poco.location.LocationStore
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import com.example.poco.ui.components.AppTab
 import com.example.poco.ui.components.GuardianTab
@@ -62,7 +69,14 @@ import com.example.poco.ui.screens.LinkedPersonRole
 import com.example.poco.ui.screens.LoginFormScreen
 import com.example.poco.ui.screens.LoginScreen
 import com.example.poco.ui.screens.MicSensitivityScreen
+import com.example.poco.ui.screens.ChangeStatus
+import com.example.poco.ui.screens.GeneralNotice
 import com.example.poco.ui.screens.NotificationCenterScreen
+import com.example.poco.ui.screens.RegularityLevel
+import com.example.poco.ui.screens.TrendAggregator
+import com.example.poco.ui.screens.TrendPeriod
+import com.example.poco.ui.theme.PocoGreen
+import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.screens.NotificationSettingsScreen
 import com.example.poco.ui.screens.QrScanScreen
 import com.example.poco.ui.screens.QrShowScreen
@@ -72,9 +86,14 @@ import com.example.poco.ui.screens.SettingsScreen
 import com.example.poco.ui.screens.SignUpScreen
 import com.example.poco.ui.screens.SplashScreen
 import com.example.poco.ui.screens.TimelineEntry
+import com.example.poco.ui.screens.TrendUiState
+import com.example.poco.ui.screens.TrendUiStateMapper
 import com.example.poco.ui.screens.UserHomeScreen
 import com.example.poco.ui.screens.UserHomeUiState
 import java.text.SimpleDateFormat
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.util.Locale
 
 /** behavior-session 의 대표 이벤트 문구를 보고 적당한 아이콘을 골라준다 (없으면 기본 아이콘). */
@@ -130,17 +149,56 @@ private fun BehaviorSessionResponse.toTimelineEntry(): TimelineEntry {
     return TimelineEntry(time = time, label = label, isRisk = false)
 }
 
+/** label_map.json의 8개 소리 클래스 코드를 한글로 바꿔준다 (행동 세션용 behaviorLabel과는 별개). */
+private fun soundClassLabel(soundLabel: String?): String = when (soundLabel) {
+    "car_horn" -> "경적"
+    "dishes" -> "그릇 소리"
+    "microwave" -> "전자레인지"
+    "scream" -> "비명"
+    "tv" -> "TV"
+    "vacuum" -> "청소기"
+    "washing_machine" -> "세탁기"
+    "water" -> "물소리"
+    else -> soundLabel ?: "알 수 없는 소리"
+}
+
+/** DangerPolicy.kt가 만드는 "scream_detected"/"car_horn_repeated" 같은 영문 reason 코드를 한글로 바꿔준다. */
+private fun dangerReasonLabel(reason: String?, soundLabel: String?): String = when (reason) {
+    "scream_detected" -> "비명 감지"
+    "car_horn_repeated" -> "반복 경적 감지"
+    else -> "${soundClassLabel(soundLabel)} 감지"
+}
+
 private fun DangerAlertResponse.toTimelineEntry() = TimelineEntry(
     time = detectedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
-    label = reason ?: soundLabel ?: "위험 신호 감지",
+    label = dangerReasonLabel(reason, soundLabel),
     isRisk = true
 )
 
 private fun DangerAlertResponse.toAnomalyAlert() = AnomalyAlert(
     time = detectedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
     type = anomalyTypeFor(reason, soundLabel),
-    evidence = reason ?: soundLabel ?: "위험 신호가 감지됐어요"
+    evidence = dangerReasonLabel(reason, soundLabel)
 )
+
+/** /api/alerts에 실제로 생성/조회된 이상탐지 알림을 화면 모델로 바꾼다. */
+private fun AlertResponse.toAnomalyAlert() = AnomalyAlert(
+    time = time.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
+    type = runCatching { AnomalyType.valueOf(type ?: "") }.getOrDefault(AnomalyType.COGNITIVE_DECREASE),
+    evidence = evidence ?: "이상 활동이 감지됐어요"
+)
+
+/** /api/notices 조회 응답(NoticeService가 규칙으로 채워준 배터리부족·일일요약)을 화면 모델로 바꾼다. */
+private fun NoticeResponse.toGeneralNotice(): GeneralNotice {
+    val isBattery = title?.contains("배터리") == true
+    return GeneralNotice(
+        time = time.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
+        title = title ?: "알림",
+        description = description ?: "",
+        icon = if (isBattery) Icons.Filled.BatteryAlert else Icons.Filled.CheckCircle,
+        tint = if (isBattery) PocoTextMuted else PocoGreen
+    )
+}
 
 private fun SleepWakeEventResponse.toTimelineEntry() = TimelineEntry(
     time = timestamp.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
@@ -148,7 +206,14 @@ private fun SleepWakeEventResponse.toTimelineEntry() = TimelineEntry(
     isRisk = false
 )
 
-/** sleep 확정 이벤트 -> 바로 다음 wake 확정 이벤트로 이어지는 구간만 묶어서 총 수면 시간을 계산한다. */
+/**
+ * sleep 확정 이벤트 -> 바로 다음 wake 확정 이벤트로 이어지는 구간을 짝지은 뒤,
+ * "기상 시각이 오늘인" 페어(=어젯밤부터 오늘 아침까지 잔 수면)만 총 수면 시간에 합산한다.
+ *
+ * 취침은 보통 전날 밤, 기상은 당일 아침이라 두 이벤트의 날짜가 다르다. 그래서 이 함수는
+ * (today-필터링된 리스트가 아니라) 필터링 전 전체 sleepWakeEvents를 받아야 한다 — 미리
+ * 오늘 것만 걸러서 넘기면 취침 이벤트가 통째로 빠져서 페어가 깨지고 "-"만 나오게 된다.
+ */
 private fun List<SleepWakeEventResponse>.totalSleepDurationLabel(): String {
     val sorted = sortedBy { it.timestamp.fromServerDateTime() ?: 0L }
     var totalMs = 0L
@@ -160,7 +225,7 @@ private fun List<SleepWakeEventResponse>.totalSleepDurationLabel(): String {
             event.eventType.equals("wake", ignoreCase = true) -> {
                 val sleptAt = pendingSleepAt
                 val wokeAt = eventTimeMs
-                if (sleptAt != null && wokeAt != null && wokeAt > sleptAt) {
+                if (sleptAt != null && wokeAt != null && wokeAt > sleptAt && wokeAt.isToday()) {
                     totalMs += wokeAt - sleptAt
                 }
                 pendingSleepAt = null
@@ -633,21 +698,28 @@ fun PocoNavHost(
                         val end = (session.endTime ?: session.confirmedTime).fromServerDateTime()
                         if (start != null && end != null && end > start) end - start else 0L
                     }
-                    .let { totalMs -> if (totalMs <= 0L) "-" else "${totalMs / 60_000L}분" }
+                    .let { totalMs -> "${totalMs / 60_000L}분" } // 활동이 없으면 "-"가 아니라 "0분"으로 (식사 횟수 "0회"와 같은 표현 방식)
                 outingLabel = if (outingEvents.any {
                         it.transitionType.equals("HOME_TO_OUTSIDE", ignoreCase = true) && it.timestamp.fromServerDateTime().isToday()
                     }) "다녀옴" else "외출 없음"
 
+                // "오늘의 활동 요약"·"오늘의 일간 타임라인"이라 이름 붙은 만큼, 다른 지표들처럼 오늘 것만 써야 한다.
+                // 단, 수면은 취침(전날 밤)·기상(당일 아침)의 날짜가 다르므로 sleepWakeEvents는 여기서
+                // 미리 today로 거르지 않고 원본 그대로 totalSleepDurationLabel()에 넘긴다(그 안에서 기상일 기준으로 처리).
+                val todayAlerts = alerts.filter { it.detectedAt.fromServerDateTime().isToday() }
+                val todayWakeEvents = sleepWakeEvents.filter {
+                    it.eventType.equals("wake", ignoreCase = true) && it.timestamp.fromServerDateTime().isToday()
+                }
+
                 sleepDurationLabel = sleepWakeEvents.totalSleepDurationLabel()
-                sleepWakeEvents
-                    .filter { it.eventType.equals("wake", ignoreCase = true) }
+                todayWakeEvents
                     .maxByOrNull { it.timestamp.fromServerDateTime() ?: 0L }
                     ?.let { wakeTimelineEntry = it.toTimelineEntry() }
 
                 latestAlert = alerts.maxByOrNull { it.detectedAt.fromServerDateTime() ?: 0L }?.toTimelineEntry()
-                recentTimeline = (alerts.map { it.toTimelineEntry() } +
-                    todaySessions.map { it.toTimelineEntry() } +
-                    sleepWakeEvents.map { it.toTimelineEntry() }).take(5)
+                // 기상은 위에서 이미 wakeTimelineEntry로 별도 표시하므로, 여기 목록에 또 넣으면 중복 표시된다.
+                recentTimeline = (todayAlerts.map { it.toTimelineEntry() } +
+                    todaySessions.map { it.toTimelineEntry() }).take(5)
             }
             GuardianHomeScreen(
                 selectedTab = GuardianTab.HOME,
@@ -676,11 +748,18 @@ fun PocoNavHost(
                 val sessions = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }.getOrDefault(emptyList())
                 val alerts = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
                 val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
+                // 화면 제목이 "오늘의 모니터링"이라 전부 오늘 것만 걸러서 써야 한다 — 안 그러면(예: 수면 시간)
+                // 여러 날짜의 기록이 합쳐져서 "112시간" 같은 값이 나온다.
+                val todaySessions = sessions.filter { it.startTime.fromServerDateTime().isToday() }
+                val todayAlerts = alerts.filter { it.detectedAt.fromServerDateTime().isToday() }
+                val todaySleepWakeEvents = sleepWakeEvents.filter { it.timestamp.fromServerDateTime().isToday() }
                 // 참고: danger-alerts 는 실제 발생 시각(epoch)이 있지만 behavior-sessions 는 세션 내 상대 초(startSec)만 있어서
                 // 두 시간 기준이 달라 정확히 하나의 시간순으로 병합할 수는 없음 -> 위험 알림을 먼저, 그 아래 행동 세션을 보여줌.
-                timeline = alerts.map { it.toTimelineEntry() } +
-                    sessions.map { it.toTimelineEntry() } +
-                    sleepWakeEvents.map { it.toTimelineEntry() }
+                timeline = todayAlerts.map { it.toTimelineEntry() } +
+                    todaySessions.map { it.toTimelineEntry() } +
+                    todaySleepWakeEvents.map { it.toTimelineEntry() }
+                // 수면 시간은 취침(전날 밤)·기상(당일 아침) 날짜가 달라서 today로 미리 거른 리스트가 아니라
+                // 원본 sleepWakeEvents를 넘겨야 한다(그 안에서 기상일 기준으로 페어를 골라낸다).
                 sleepDurationLabel = sleepWakeEvents.totalSleepDurationLabel()
             }
             GuardianDailyMonitoringScreen(
@@ -694,33 +773,98 @@ fun PocoNavHost(
             val context = LocalContext.current
             val locationStore = remember(context) { LocationStore(context) }
             var hourlyRhythm by remember { mutableStateOf(List(24) { 0 }) }
+            var trendState by remember { mutableStateOf<TrendUiState>(TrendUiState.Loading) }
             LaunchedEffect(Unit) {
                 val deviceId = resolveMonitoredUser(locationStore)?.device?.id ?: return@LaunchedEffect
-                hourlyRhythm = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }
-                    .getOrDefault(emptyList())
-                    .hourlyRhythmToday()
+
+                // behavior_sessions·outing_events·sleep_wake_events·danger_alerts를 병렬로 조회.
+                // 전부 성공해야만 화면을 보여주는 구조는 피한다 — 각 API의 성공/빈 데이터/실패를 그대로
+                // TrendUiStateMapper(순수 함수)에 넘겨서 emptyList로 뭉개지 않고 구분되게 한다.
+                val sessionsDeferred = async { runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) } }
+                val outingsDeferred = async { runCatching { ServerApiClient.api.getOutingEvents(deviceId) } }
+                val sleepDeferred = async { runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) } }
+                val dangerDeferred = async { runCatching { ServerApiClient.api.getDangerAlerts(deviceId) } }
+
+                val sessionsResult = sessionsDeferred.await()
+                val outingsResult = outingsDeferred.await()
+                val sleepResult = sleepDeferred.await()
+                val dangerResult = dangerDeferred.await()
+
+                hourlyRhythm = sessionsResult.getOrDefault(emptyList()).hourlyRhythmToday()
+                trendState = TrendUiStateMapper.resolve(sessionsResult, outingsResult, sleepResult, dangerResult, System.currentTimeMillis())
             }
             GuardianTrendScreen(
                 selectedTab = GuardianTab.TREND,
                 onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
-                hourlyRhythm = hourlyRhythm
+                hourlyRhythm = hourlyRhythm,
+                trendState = trendState
             )
         }
         composable(PocoRoutes.GUARDIAN_ALERTS) {
             val context = LocalContext.current
             val locationStore = remember(context) { LocationStore(context) }
             var anomalies by remember { mutableStateOf(emptyList<AnomalyAlert>()) }
+            var generalNotices by remember { mutableStateOf(emptyList<GeneralNotice>()) }
             LaunchedEffect(Unit) {
                 val deviceId = resolveMonitoredUser(locationStore)?.device?.id ?: return@LaunchedEffect
-                runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }
-                    .onSuccess { alerts -> anomalies = alerts.map { it.toAnomalyAlert() } }
+
+                // 일반 알림: 조회만 하면 서버가 오늘자 배터리부족/일일요약을 규칙으로 채워서 돌려준다(NoticeService 참고).
+                runCatching { ServerApiClient.api.getNotices(deviceId) }
+                    .onSuccess { notices -> generalNotices = notices.map { it.toGeneralNotice() } }
+
+                val dangerAlertsList = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
+                val existingAnomalyAlerts = runCatching { ServerApiClient.api.getAlerts(deviceId) }.getOrDefault(emptyList())
+
+                // 이상탐지: 이미 만들어둔 장기추세 분석 엔진(TrendAggregator)의 판정을 그대로 재사용해서
+                // 기준(20% 이상 변화 + 최소 유효기록일)을 통과하면 이상탐지 알림을 생성한다.
+                // 같은 날 같은 유형을 중복 생성하지 않도록 오늘자 기존 알림 유형을 먼저 확인한다.
+                val today = LocalDate.now()
+                val existingTypesToday = existingAnomalyAlerts
+                    .filter { it.time.fromServerDateTime()?.let { ms -> Instant.ofEpochMilli(ms).atZone(ZoneId.systemDefault()).toLocalDate() } == today }
+                    .mapNotNull { it.type }
+                    .toSet()
+
+                val sessions = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }.getOrDefault(emptyList())
+                val outings = runCatching { ServerApiClient.api.getOutingEvents(deviceId) }.getOrDefault(emptyList())
+                val sleepEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
+                val analysis = TrendAggregator.analyze(TrendPeriod.WEEK, sessions, outings, sleepEvents, dangerAlertsList)
+
+                val newAlerts = mutableListOf<Pair<String, String>>() // type to evidence
+                if ("OUTING_DECREASE" !in existingTypesToday &&
+                    analysis.outing.change.status == ChangeStatus.NORMAL &&
+                    (analysis.outing.change.changePercent ?: 0.0) <= -20.0
+                ) {
+                    newAlerts += "OUTING_DECREASE" to "이전 기간 대비 외출 빈도 %.0f%% 감소".format(-(analysis.outing.change.changePercent ?: 0.0))
+                }
+                if ("MEAL_IRREGULAR" !in existingTypesToday && analysis.meal.regularityLevel == RegularityLevel.HIGHLY_VARIABLE) {
+                    newAlerts += "MEAL_IRREGULAR" to "최근 식사 시작 시각 표준편차 %.0f분으로 변동이 커요".format(analysis.meal.startTimeStdDevMinutes ?: 0.0)
+                }
+                if ("COGNITIVE_DECREASE" !in existingTypesToday &&
+                    analysis.media.change.status == ChangeStatus.NORMAL &&
+                    (analysis.media.change.changePercent ?: 0.0) <= -20.0
+                ) {
+                    newAlerts += "COGNITIVE_DECREASE" to "이전 기간 대비 대화·미디어 활동 %.0f%% 감소".format(-(analysis.media.change.changePercent ?: 0.0))
+                }
+
+                val createdAlerts = newAlerts.mapNotNull { (type, evidence) ->
+                    runCatching {
+                        ServerApiClient.api.createAlert(
+                            AlertRequest(deviceId = deviceId, type = type, time = System.currentTimeMillis().toServerDateTime(), evidence = evidence)
+                        )
+                    }.getOrNull()
+                }
+
+                // danger_alerts(비명·경적)는 "위험 알림"이라 홈 화면 주의 배너·타임라인에서 이미 보여준다.
+                // 여기(이상탐지)엔 진짜 이상탐지 alerts 테이블 것만 넣는다 — 안 그러면 anomalyTypeFor()의
+                // fallback 때문에 "비명 감지"까지 전부 "대화·인지 자극 감소"로 오분류돼 보인다.
+                anomalies = (existingAnomalyAlerts.map { it.toAnomalyAlert() } +
+                    createdAlerts.map { it.toAnomalyAlert() })
             }
-            // 참고: "일반 알림"(일일 요약/배터리 부족 등)은 아직 서버에서 만들어주는 로직이 없어서 빈 목록으로 표시됨.
             NotificationCenterScreen(
                 selectedTab = GuardianTab.ALERTS,
                 onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
                 anomalies = anomalies,
-                generalNotices = emptyList()
+                generalNotices = generalNotices
             )
         }
         composable(PocoRoutes.GUARDIAN_SETTINGS) {
