@@ -49,6 +49,7 @@ import com.example.poco.location.LocationSample
 import com.example.poco.location.LocationStore
 import com.example.poco.location.PatientLocationRepository
 import kotlinx.coroutines.async
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import com.example.poco.ui.components.AppTab
 import com.example.poco.ui.components.GuardianTab
@@ -293,6 +294,9 @@ object PocoRoutes {
     const val GUARDIAN_LINK_NEW_USER = "guardian_link_new_user"
 }
 
+/** 보호자 위치 화면이 서버에서 최신 좌표를 다시 읽어오는 주기. 환자 기기의 업로드 주기(LocationTracker 30초)에 맞춘다. */
+private const val LOCATION_REFRESH_INTERVAL_MS = 30_000L
+
 // TODO: replace with the linked user's real phone number once the backend exposes it.
 private const val LINKED_USER_PHONE_NUMBER = "01000000000"
 
@@ -355,9 +359,9 @@ private suspend fun resolveEmergencyTargetDeviceId(locationStore: LocationStore)
 }
 
 /** 위치 측정 시각을 "방금 전 / N분 전 / N시간 전 업데이트" 형태로 바꾼다. 하루가 넘으면 시각을 그대로 보여준다. */
-private fun locationUpdatedLabel(measuredAtEpochMs: Long): String {
+private fun locationUpdatedLabel(measuredAtEpochMs: Long, now: Long = System.currentTimeMillis()): String {
     if (measuredAtEpochMs <= 0L) return "업데이트 시각 알 수 없음"
-    val ageMs = System.currentTimeMillis() - measuredAtEpochMs
+    val ageMs = now - measuredAtEpochMs
     val minutes = ageMs / 60_000L
     return when {
         minutes < 1 -> "방금 전 업데이트"
@@ -670,19 +674,29 @@ fun PocoNavHost(
             var location by remember { mutableStateOf<LocationSample?>(null) }
             var homeState by remember { mutableStateOf(HomeState.UNKNOWN) }
             var loadFailed by remember { mutableStateOf(false) }
+            // "N분 전 업데이트" 문구가 새 좌표 없이도 시간에 따라 갱신되도록 주기마다 바꿔주는 값.
+            var refreshTick by remember { mutableStateOf(0L) }
             LaunchedEffect(Unit) {
-                // 서버의 latest-locations 는 환자 기기(AudioMonitorService)가 주기적으로 올린 마지막 좌표다.
+                // 서버의 latest-locations 는 환자 기기(AudioMonitorService)가 30초마다 올린 마지막 좌표다.
+                // 화면이 떠 있는 동안 같은 주기로 다시 읽어와 마커·문구를 갱신한다. 화면을 나가면 LaunchedEffect가 취소된다.
                 val deviceId = resolveEmergencyTargetDeviceId(locationStore)
                 if (deviceId == null) {
                     loadFailed = true
                     return@LaunchedEffect
                 }
-                runCatching { PatientLocationRepository().getLatest(deviceId) }
-                    .onSuccess { (sample, state) ->
-                        location = sample
-                        homeState = state
-                    }
-                    .onFailure { loadFailed = true }
+                val repository = PatientLocationRepository()
+                while (true) {
+                    runCatching { repository.getLatest(deviceId) }
+                        .onSuccess { (sample, state) ->
+                            location = sample
+                            homeState = state
+                            loadFailed = false
+                        }
+                        // 한 번 받아온 좌표가 있으면 일시적인 네트워크 실패로 지우지 않고 그대로 보여준다.
+                        .onFailure { if (location == null) loadFailed = true }
+                    refreshTick = System.currentTimeMillis()
+                    delay(LOCATION_REFRESH_INTERVAL_MS)
+                }
             }
             val statusLabel = location?.let { sample ->
                 val stateText = when (homeState) {
@@ -695,7 +709,7 @@ fun PocoNavHost(
             EmergencyLocationScreen(
                 onBack = { navController.popBackStack() },
                 statusLabel = statusLabel,
-                updatedLabel = location?.let { locationUpdatedLabel(it.measuredAtEpochMs) }
+                updatedLabel = location?.let { locationUpdatedLabel(it.measuredAtEpochMs, now = refreshTick) }
                     ?: if (loadFailed) "연동된 사용자의 위치 기록이 없어요" else "",
                 location = location,
                 onOpenInMaps = {
