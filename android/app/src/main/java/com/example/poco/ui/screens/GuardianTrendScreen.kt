@@ -104,7 +104,7 @@ fun GuardianTrendScreen(
                                 else TrendStatusCard("아직 기록된 데이터가 없어요")
                             }
                             item {
-                                if (analysis != null) LifeRegularityCard(analysis, trendState.sleepState)
+                                if (analysis != null) LifeRegularityCard(analysis, trendState.sleepState, trendState.dangerState)
                                 else TrendStatusCard("아직 기록된 데이터가 없어요")
                             }
                             if (analysis != null) {
@@ -279,7 +279,7 @@ private fun formatMinutesAsClock(minutes: Double): String {
 
 /** "생활 규칙성 및 활동 변화" — 식사·수면·짧은 간격의 동일 활동·대화·미디어 활동을 한 카드에 모아 보여준다. */
 @Composable
-private fun LifeRegularityCard(analysis: TrendAnalysis, sleepState: TrendSourceState) {
+private fun LifeRegularityCard(analysis: TrendAnalysis, sleepState: TrendSourceState, dangerState: TrendSourceState) {
     PocoCard(modifier = Modifier.fillMaxWidth()) {
         CardTitle("생활 규칙성 및 활동 변화")
         Spacer(modifier = Modifier.height(4.dp))
@@ -331,6 +331,29 @@ private fun LifeRegularityCard(analysis: TrendAnalysis, sleepState: TrendSourceS
             text = "대화·미디어 관련 소리가 감지된 시간이에요. 실제 인지 활동량과는 차이가 있을 수 있어요.",
             color = PocoTextMuted, fontSize = 11.sp, lineHeight = 15.sp
         )
+
+        Spacer(modifier = Modifier.height(10.dp))
+        HorizontalDividerLine()
+        Spacer(modifier = Modifier.height(10.dp))
+
+        if (dangerState is TrendSourceState.Error) {
+            Text(text = dangerState.message, color = PocoTextMuted, fontSize = 12.5.sp)
+        } else {
+            MetricRow(
+                "위험 감지 횟수",
+                "${analysis.danger.totalCount}회" + (analysis.danger.absoluteChange?.let {
+                    when {
+                        it > 0 -> " (▲${it})"
+                        it < 0 -> " (▼${-it})"
+                        else -> ""
+                    }
+                } ?: "")
+            )
+            Text(
+                text = "마이크로 감지된 위험 신호(비명·경적 등)의 횟수예요. 오탐이 섞여 있을 수 있어요.",
+                color = PocoTextMuted, fontSize = 11.sp, lineHeight = 15.sp
+            )
+        }
     }
 }
 
