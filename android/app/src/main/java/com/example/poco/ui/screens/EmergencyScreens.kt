@@ -27,6 +27,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -42,6 +43,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.poco.location.LocationSample
 import com.example.poco.ui.components.DangerButton
 import com.example.poco.ui.components.PocoCard
 import com.example.poco.ui.components.PocoTopBar
@@ -58,6 +60,16 @@ import com.example.poco.ui.theme.PocoRedGlowEnd
 import com.example.poco.ui.theme.PocoRedGlowStart
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.LatLng
+import com.google.maps.android.compose.Circle
+import com.google.maps.android.compose.GoogleMap
+import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
+import com.google.maps.android.compose.rememberCameraPositionState
 
 /** 사용자 모드 — 평소보다 큰 소리가 감지됐을 때 뜨는 확인 화면 (빨간 테마). */
 @Composable
@@ -237,7 +249,11 @@ fun EmergencyGuardianScreen(
 fun EmergencyLocationScreen(
     onBack: () -> Unit,
     onOpenInMaps: () -> Unit,
-    modifier: Modifier = Modifier
+    statusLabel: String,
+    updatedLabel: String,
+    modifier: Modifier = Modifier,
+    location: LocationSample? = null,
+    canOpenInMaps: Boolean = location != null
 ) {
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -247,31 +263,36 @@ fun EmergencyLocationScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(220.dp)
+                        .height(280.dp)
                         .clip(RoundedCornerShape(20.dp))
                         .background(PocoCardBackground),
                     contentAlignment = Alignment.Center
                 ) {
-                    MapGridBackground(modifier = Modifier.matchParentSize())
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(CircleShape)
-                            .background(
-                                Brush.radialGradient(
-                                    0f to PocoRedGlowStart,
-                                    0.85f to Color.White,
-                                    1f to PocoRedGlowEnd
-                                )
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.LocationOn,
-                            contentDescription = null,
-                            tint = PocoRed,
-                            modifier = Modifier.size(28.dp)
-                        )
+                    if (location != null) {
+                        PatientLocationMap(location = location, modifier = Modifier.matchParentSize())
+                    } else {
+                        // 좌표를 아직 못 받았을 때(로딩/실패)만 보여주는 자리표시 화면.
+                        MapGridBackground(modifier = Modifier.matchParentSize())
+                        Box(
+                            modifier = Modifier
+                                .size(64.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        0f to PocoRedGlowStart,
+                                        0.85f to Color.White,
+                                        1f to PocoRedGlowEnd
+                                    )
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.LocationOn,
+                                contentDescription = null,
+                                tint = PocoRed,
+                                modifier = Modifier.size(28.dp)
+                            )
+                        }
                     }
                 }
 
@@ -282,18 +303,64 @@ fun EmergencyLocationScreen(
                         Icon(imageVector = Icons.Filled.LocationOn, contentDescription = null, tint = PocoRed, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(8.dp))
                         Column {
-                            Text(text = "자택 인근 250m", color = PocoTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
-                            Text(text = "5분 전 업데이트", color = PocoTextMuted, fontSize = 13.sp)
+                            Text(text = statusLabel, color = PocoTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Medium)
+                            if (updatedLabel.isNotEmpty()) {
+                                Text(text = updatedLabel, color = PocoTextMuted, fontSize = 13.sp)
+                            }
                         }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-                PrimaryButton(text = "지도 앱에서 열기", onClick = onOpenInMaps)
+                PrimaryButton(text = "지도 앱에서 열기", onClick = onOpenInMaps, enabled = canOpenInMaps)
             }
         }
     }
 }
+
+/**
+ * 환자 최신 좌표에 마커를 찍고 GPS 정확도만큼 원을 그린 Google 지도.
+ * 주변 가게·병원 이름은 지도 타일에 이미 포함되어 있어 별도 API 호출(=과금)이 없다.
+ * 길찾기 툴바·내 위치 버튼은 이 화면에 필요 없어서 꺼둔다.
+ */
+@Composable
+private fun PatientLocationMap(location: LocationSample, modifier: Modifier = Modifier) {
+    val target = LatLng(location.latitude, location.longitude)
+    val cameraPositionState = rememberCameraPositionState {
+        position = CameraPosition.fromLatLngZoom(target, PATIENT_MAP_ZOOM)
+    }
+    // 화면이 떠 있는 동안 좌표가 갱신되면 카메라도 따라간다.
+    LaunchedEffect(target) {
+        cameraPositionState.animate(CameraUpdateFactory.newLatLngZoom(target, PATIENT_MAP_ZOOM))
+    }
+    val markerState = remember(target) { MarkerState(position = target) }
+
+    GoogleMap(
+        modifier = modifier,
+        cameraPositionState = cameraPositionState,
+        properties = MapProperties(isMyLocationEnabled = false),
+        uiSettings = MapUiSettings(
+            mapToolbarEnabled = false,
+            myLocationButtonEnabled = false,
+            zoomControlsEnabled = false,
+            compassEnabled = false
+        )
+    ) {
+        if (location.accuracyMeters > 0f) {
+            Circle(
+                center = target,
+                radius = location.accuracyMeters.toDouble(),
+                fillColor = PocoRed.copy(alpha = 0.12f),
+                strokeColor = PocoRed.copy(alpha = 0.5f),
+                strokeWidth = 2f
+            )
+        }
+        Marker(state = markerState, title = "사용자 위치")
+    }
+}
+
+/** 마커 주변 가게 이름이 읽힐 정도의 확대 수준(동네 골목 단위). */
+private const val PATIENT_MAP_ZOOM = 17f
 
 @Composable
 private fun MapGridBackground(modifier: Modifier = Modifier) {
@@ -383,7 +450,14 @@ private fun EmergencyGuardianScreenPreview() {
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)
 @Composable
 private fun EmergencyLocationScreenPreview() {
-    POCOTheme { EmergencyLocationScreen(onBack = {}, onOpenInMaps = {}) }
+    POCOTheme {
+        EmergencyLocationScreen(
+            onBack = {},
+            onOpenInMaps = {},
+            statusLabel = "외출 중 · 정확도 ±12m",
+            updatedLabel = "5분 전 업데이트"
+        )
+    }
 }
 
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)

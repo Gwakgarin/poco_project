@@ -44,7 +44,10 @@ import com.example.poco.SoundEventResponse
 import com.example.poco.UserLinkResponse
 import com.example.poco.fromServerDateTime
 import com.example.poco.toServerDateTime
+import com.example.poco.location.HomeState
+import com.example.poco.location.LocationSample
 import com.example.poco.location.LocationStore
+import com.example.poco.location.PatientLocationRepository
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import com.example.poco.ui.components.AppTab
@@ -290,9 +293,8 @@ object PocoRoutes {
     const val GUARDIAN_LINK_NEW_USER = "guardian_link_new_user"
 }
 
-// TODO: replace with the linked user's real phone number and last-known location once the backend exposes them.
+// TODO: replace with the linked user's real phone number once the backend exposes it.
 private const val LINKED_USER_PHONE_NUMBER = "01000000000"
-private const val LINKED_USER_LAST_LOCATION_QUERY = "37.5665,126.9780"
 
 /** SIGN_UP 화면에서 입력받은 값을 ROLE_SELECT에서 실제 signup() 호출 때까지 들고 있기 위한 홀더. */
 private data class PendingSignUp(
@@ -340,6 +342,29 @@ private suspend fun resolveMonitoredUser(locationStore: LocationStore): Monitore
     val device = ServerApiClient.api.getDeviceByUserId(link.userId)
     val name = runCatching { ServerApiClient.api.getUser(link.userId).name }.getOrNull()
     return MonitoredUser(device = device, relationLabel = link.relationLabel ?: "연동된 사용자", name = name)
+}
+
+/** 응급 화면들이 다룰 기기 id. 사용자(role=0)면 자기 기기, 보호자면 연동된 사용자의 기기를 반환한다. */
+private suspend fun resolveEmergencyTargetDeviceId(locationStore: LocationStore): Long? {
+    locationStore.currentUserId() ?: return null
+    return if (locationStore.currentUserRole() == 0) {
+        locationStore.backendDeviceId()
+    } else {
+        runCatching { resolveMonitoredUser(locationStore) }.getOrNull()?.device?.id
+    }
+}
+
+/** 위치 측정 시각을 "방금 전 / N분 전 / N시간 전 업데이트" 형태로 바꾼다. 하루가 넘으면 시각을 그대로 보여준다. */
+private fun locationUpdatedLabel(measuredAtEpochMs: Long): String {
+    if (measuredAtEpochMs <= 0L) return "업데이트 시각 알 수 없음"
+    val ageMs = System.currentTimeMillis() - measuredAtEpochMs
+    val minutes = ageMs / 60_000L
+    return when {
+        minutes < 1 -> "방금 전 업데이트"
+        minutes < 60 -> "${minutes}분 전 업데이트"
+        minutes < 24 * 60 -> "${minutes / 60}시간 전 업데이트"
+        else -> "${timeFormatter.format(measuredAtEpochMs)} 업데이트"
+    }
 }
 
 /** epoch ms가 "오늘"(기기 로컬 자정~자정) 범위인지 확인한다. */
@@ -641,14 +666,46 @@ fun PocoNavHost(
         }
         composable(PocoRoutes.EMERGENCY_LOCATION) {
             val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
+            var location by remember { mutableStateOf<LocationSample?>(null) }
+            var homeState by remember { mutableStateOf(HomeState.UNKNOWN) }
+            var loadFailed by remember { mutableStateOf(false) }
+            LaunchedEffect(Unit) {
+                // 서버의 latest-locations 는 환자 기기(AudioMonitorService)가 주기적으로 올린 마지막 좌표다.
+                val deviceId = resolveEmergencyTargetDeviceId(locationStore)
+                if (deviceId == null) {
+                    loadFailed = true
+                    return@LaunchedEffect
+                }
+                runCatching { PatientLocationRepository().getLatest(deviceId) }
+                    .onSuccess { (sample, state) ->
+                        location = sample
+                        homeState = state
+                    }
+                    .onFailure { loadFailed = true }
+            }
+            val statusLabel = location?.let { sample ->
+                val stateText = when (homeState) {
+                    HomeState.HOME -> "집 안"
+                    HomeState.OUTSIDE -> "외출 중"
+                    HomeState.UNKNOWN -> "위치 확인됨"
+                }
+                "$stateText · 정확도 ±%.0fm".format(sample.accuracyMeters)
+            } ?: if (loadFailed) "위치 정보를 불러오지 못했어요" else "위치 정보를 불러오는 중..."
             EmergencyLocationScreen(
                 onBack = { navController.popBackStack() },
+                statusLabel = statusLabel,
+                updatedLabel = location?.let { locationUpdatedLabel(it.measuredAtEpochMs) }
+                    ?: if (loadFailed) "연동된 사용자의 위치 기록이 없어요" else "",
+                location = location,
                 onOpenInMaps = {
-                    val geoUri = Uri.parse("geo:0,0?q=${Uri.encode(LINKED_USER_LAST_LOCATION_QUERY)}")
+                    val sample = location ?: return@EmergencyLocationScreen
+                    val query = "${sample.latitude},${sample.longitude}"
+                    val geoUri = Uri.parse("geo:$query?q=${Uri.encode("$query(사용자 위치)")}")
                     try {
                         context.startActivity(Intent(Intent.ACTION_VIEW, geoUri))
                     } catch (e: ActivityNotFoundException) {
-                        val webUri = Uri.parse("https://maps.google.com/?q=${Uri.encode(LINKED_USER_LAST_LOCATION_QUERY)}")
+                        val webUri = Uri.parse("https://maps.google.com/?q=${Uri.encode(query)}")
                         context.startActivity(Intent(Intent.ACTION_VIEW, webUri))
                     }
                 }
@@ -956,19 +1013,7 @@ fun PocoNavHost(
             val scope = rememberCoroutineScope()
             var targetDeviceId by remember { mutableStateOf<Long?>(null) }
             LaunchedEffect(Unit) {
-                val userId = locationStore.currentUserId() ?: return@LaunchedEffect
-                val role = locationStore.currentUserRole()
-                targetDeviceId = if (role == 0) {
-                    locationStore.backendDeviceId()
-                } else {
-                    runCatching { ServerApiClient.api.getMyLinks(userId, "GUARDIAN") }
-                        .getOrDefault(emptyList())
-                        .firstOrNull()
-                        ?.userId
-                        ?.let { patientUserId ->
-                            runCatching { ServerApiClient.api.getDeviceByUserId(patientUserId) }.getOrNull()?.id
-                        }
-                }
+                targetDeviceId = resolveEmergencyTargetDeviceId(locationStore)
             }
             EmergencyGuardianScreen(
                 onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },

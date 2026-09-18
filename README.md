@@ -105,6 +105,14 @@ cd android
 
 Android Studio에서 `android/` 디렉터리를 열어 실행할 수도 있습니다. 실행 시 마이크(`RECORD_AUDIO`)와 위치 권한이 필요합니다.
 
+보호자 위치 확인 화면의 Google 지도를 띄우려면 `android/local.properties`에 Maps API 키를 넣어야 합니다 (이 파일은 깃에 올라가지 않습니다). 키가 없어도 빌드·실행은 되며 지도 영역만 회색으로 표시됩니다.
+
+```properties
+MAPS_API_KEY=여기에_발급받은_키
+```
+
+Google Cloud 콘솔에서는 **Maps SDK for Android**만 사용 설정하고, 키의 API 제한도 그 하나로 걸어 두세요. 지도 표시는 무료이며, 길찾기·장소 검색 같은 과금 API는 앱에서 호출하지 않습니다.
+
 ### AI 파이프라인 (모델 학습/재현)
 
 ```bash
