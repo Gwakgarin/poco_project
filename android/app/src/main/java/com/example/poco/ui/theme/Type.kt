@@ -16,6 +16,11 @@ val Pretendard = FontFamily(
     Font(R.font.pretendard_extrabold, FontWeight.ExtraBold)
 )
 
+// POCO 워드마크 전용 디스플레이 폰트 (스플래시 등 브랜드 모먼트에서만 사용)
+val KohiBaeum = FontFamily(
+    Font(R.font.kohi_baeum, FontWeight.Normal)
+)
+
 // POCO type scale — Pretendard, tighter tracking on headlines, roomier line-height on body copy.
 val Typography = Typography(
     displaySmall = TextStyle(

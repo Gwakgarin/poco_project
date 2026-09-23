@@ -19,7 +19,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -29,8 +28,8 @@ import com.example.poco.ui.components.PocoTextField
 import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.components.PrimaryButton
 import com.example.poco.ui.components.SecondaryButton
+import com.example.poco.ui.theme.KohiBaeum
 import com.example.poco.ui.theme.POCOTheme
-import com.example.poco.ui.theme.PocoGreen
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 
@@ -49,13 +48,13 @@ fun LoginScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                PocoLogoBadge(size = 92.dp, badgeColor = Color.White, markColor = PocoGreen)
+                PocoLogoBadge(size = 92.dp, light = true)
                 Spacer(modifier = Modifier.height(20.dp))
                 Text(
                     text = "POCO",
                     color = PocoTextPrimary,
+                    fontFamily = KohiBaeum,
                     fontSize = 32.sp,
-                    fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-1.4).sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))

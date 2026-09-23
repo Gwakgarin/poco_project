@@ -26,11 +26,11 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.poco.ui.components.PocoLogoBadge
+import com.example.poco.ui.theme.KohiBaeum
 import com.example.poco.ui.theme.POCOTheme
 import com.example.poco.ui.theme.PocoGlowStart
 import com.example.poco.ui.theme.PocoGreen
@@ -98,14 +98,14 @@ fun SplashScreen(
                             .clip(CircleShape)
                             .background(Color.White.copy(alpha = pulseAlpha))
                     )
-                    PocoLogoBadge(size = 92.dp, badgeColor = Color.White, markColor = PocoGreen)
+                    PocoLogoBadge(size = 92.dp)
                 }
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     text = "POCO",
                     color = Color.White,
+                    fontFamily = KohiBaeum,
                     fontSize = 34.sp,
-                    fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-1.4).sp
                 )
                 Spacer(modifier = Modifier.height(8.dp))
