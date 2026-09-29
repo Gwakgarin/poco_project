@@ -1,6 +1,17 @@
 package com.example.poco.ui.screens
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.CameraSelector
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.Preview as CameraPreview
+import androidx.camera.lifecycle.ProcessCameraProvider
+import androidx.camera.view.PreviewView
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -21,6 +32,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -31,11 +43,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.content.ContextCompat
 import com.example.poco.ui.components.PocoTextField
 import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.components.PrimaryButton
@@ -44,6 +61,11 @@ import com.example.poco.ui.theme.PocoCardBackground
 import com.example.poco.ui.theme.PocoGreen
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
+import java.util.concurrent.Executors
 import kotlin.random.Random
 
 /** 사용자 기기에 표시되는 연동 코드 화면. 보호자가 이 코드를 스캔해 계정을 연결한다.
@@ -74,7 +96,20 @@ fun QrShowScreen(
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(32.dp))
-                QrPlaceholder(seed = 42)
+                val qrBitmap = code?.let { rememberQrBitmap(it) }
+                if (qrBitmap != null) {
+                    Image(
+                        bitmap = qrBitmap,
+                        contentDescription = "연동 QR 코드",
+                        modifier = Modifier
+                            .size(220.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(PocoCardBackground)
+                            .padding(16.dp)
+                    )
+                } else {
+                    QrPlaceholder(seed = 42)
+                }
                 Spacer(modifier = Modifier.height(24.dp))
                 Text(
                     text = code?.let { "연동 코드: $it" } ?: "코드 발급 중...",
@@ -88,7 +123,8 @@ fun QrShowScreen(
     }
 }
 
-/** 보호자 기기의 스캔 화면. 카메라 연동 전이라 코드를 직접 입력받는다. */
+/** 보호자 기기의 스캔 화면. 초록 프레임 안에 실제 카메라 미리보기를 띄우고 ML Kit으로 QR을 읽는다.
+ *  카메라 권한이 없거나 인식이 어려우면 코드를 직접 입력할 수도 있다. */
 @Composable
 fun QrScanScreen(
     onScanned: (code: String) -> Unit,
@@ -96,6 +132,16 @@ fun QrScanScreen(
     modifier: Modifier = Modifier
 ) {
     var code by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    var hasCameraPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+        )
+    }
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted -> hasCameraPermission = granted }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.Black) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -109,7 +155,7 @@ fun QrScanScreen(
                 verticalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "사용자 기기에 뜬\n연동 코드를 입력해주세요",
+                    text = "사용자 기기에 뜬\nQR을 카메라에 비춰주세요",
                     color = Color.White,
                     fontSize = 18.sp,
                     fontWeight = FontWeight.Bold,
@@ -119,17 +165,38 @@ fun QrScanScreen(
                 Box(
                     modifier = Modifier
                         .size(240.dp)
+                        .clip(RoundedCornerShape(16.dp))
                         .border(2.dp, PocoGreen, RoundedCornerShape(16.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Filled.QrCodeScanner,
-                        contentDescription = null,
-                        tint = PocoGreen,
-                        modifier = Modifier.size(64.dp)
+                    if (hasCameraPermission) {
+                        QrCameraPreview(
+                            onScanned = onScanned,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.QrCodeScanner,
+                            contentDescription = null,
+                            tint = PocoGreen,
+                            modifier = Modifier.size(64.dp)
+                        )
+                    }
+                }
+                if (!hasCameraPermission) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    PrimaryButton(
+                        text = "카메라 권한 허용하기",
+                        onClick = { permissionLauncher.launch(Manifest.permission.CAMERA) }
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = "또는 코드 직접 입력",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 13.sp
+                )
+                Spacer(modifier = Modifier.height(8.dp))
                 PocoTextField(
                     value = code,
                     onValueChange = { code = it },
@@ -142,6 +209,84 @@ fun QrScanScreen(
         }
     }
 }
+
+/** CameraX Preview + ML Kit 바코드 분석기로 QR을 실시간으로 읽는다.
+ *  하나 인식되면 즉시 콜백을 부르고, 화면을 벗어나면 카메라 바인딩을 해제한다. */
+@Composable
+private fun QrCameraPreview(
+    onScanned: (code: String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var hasScanned by remember { mutableStateOf(false) }
+
+    AndroidView(
+        modifier = modifier,
+        factory = { ctx ->
+            val previewView = PreviewView(ctx)
+            val executor = Executors.newSingleThreadExecutor()
+            val scanner = BarcodeScanning.getClient()
+            val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+            cameraProviderFuture.addListener({
+                val cameraProvider = cameraProviderFuture.get()
+                val preview = CameraPreview.Builder().build().also {
+                    it.surfaceProvider = previewView.surfaceProvider
+                }
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                analysis.setAnalyzer(executor) { imageProxy ->
+                    val mediaImage = imageProxy.image
+                    if (mediaImage == null || hasScanned) {
+                        imageProxy.close()
+                    } else {
+                        val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                        scanner.process(image)
+                            .addOnSuccessListener { barcodes ->
+                                val value = barcodes.firstOrNull()?.rawValue
+                                if (value != null && !hasScanned) {
+                                    hasScanned = true
+                                    onScanned(value)
+                                }
+                            }
+                            .addOnCompleteListener { imageProxy.close() }
+                    }
+                }
+                runCatching {
+                    cameraProvider.unbindAll()
+                    cameraProvider.bindToLifecycle(
+                        lifecycleOwner,
+                        CameraSelector.DEFAULT_BACK_CAMERA,
+                        preview,
+                        analysis
+                    )
+                }
+            }, ContextCompat.getMainExecutor(ctx))
+            previewView
+        }
+    )
+
+    DisposableEffect(Unit) {
+        onDispose {
+            runCatching { ProcessCameraProvider.getInstance(context).get().unbindAll() }
+        }
+    }
+}
+
+/** userId에서 생성된 연동 코드를 실제 QR 이미지로 인코딩한다 (표시 전용, 스캔 쪽 인코딩은 ML Kit이 처리). */
+@Composable
+private fun rememberQrBitmap(content: String, sizePx: Int = 480) =
+    remember(content) {
+        val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
+        val bitmap = Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.RGB_565)
+        for (x in 0 until sizePx) {
+            for (y in 0 until sizePx) {
+                bitmap.setPixel(x, y, if (matrix.get(x, y)) android.graphics.Color.BLACK else android.graphics.Color.WHITE)
+            }
+        }
+        bitmap.asImageBitmap()
+    }
 
 /** 화면에 보여주는 한글 라벨 -> 서버가 받는 relationLabel(ENUM) 값. */
 private val RELATION_OPTIONS = listOf(

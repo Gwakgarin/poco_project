@@ -33,9 +33,11 @@ import com.example.poco.ui.theme.PocoTextPrimary
 @Composable
 fun MicSensitivityScreen(
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    initialValue: Float = 0.55f,
+    onSensitivityChange: (Float) -> Unit = {}
 ) {
-    var sensitivity by remember { mutableFloatStateOf(0.55f) }
+    var sensitivity by remember(initialValue) { mutableFloatStateOf(initialValue) }
     val level = when {
         sensitivity < 0.34f -> "낮음"
         sensitivity < 0.67f -> "보통"
@@ -63,6 +65,7 @@ fun MicSensitivityScreen(
                     Slider(
                         value = sensitivity,
                         onValueChange = { sensitivity = it },
+                        onValueChangeFinished = { onSensitivityChange(sensitivity) },
                         colors = SliderDefaults.colors(
                             thumbColor = PocoGreen,
                             activeTrackColor = PocoGreen

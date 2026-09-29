@@ -607,7 +607,7 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.MIC_SENSITIVITY) {
-            MicSensitivityScreen(onBack = { navController.popBackStack() })
+            MicSensitivityRoute(onBack = { navController.popBackStack() })
         }
         composable(PocoRoutes.NOTIFICATION_SETTINGS) {
             NotificationSettingsRoute(onBack = { navController.popBackStack() })
@@ -1053,6 +1053,33 @@ fun PocoNavHost(
     }
 }
 
+/** 마이크 감도 화면 공통 래퍼 — 서버에서 현재 값을 읽어와 초깃값으로 넣고, 슬라이더를 놓을 때(onValueChangeFinished)
+ *  서버에 반영한다. */
+@Composable
+private fun MicSensitivityRoute(onBack: () -> Unit) {
+    val context = LocalContext.current
+    val locationStore = remember(context) { LocationStore(context) }
+    val scope = rememberCoroutineScope()
+    var userId by remember { mutableStateOf<Long?>(null) }
+    var initialValue by remember { mutableStateOf(0.55f) }
+    LaunchedEffect(Unit) {
+        val id = locationStore.currentUserId() ?: return@LaunchedEffect
+        userId = id
+        runCatching { ServerApiClient.api.getDeviceByUserId(id) }
+            .onSuccess { device -> initialValue = device.micSensitivity }
+    }
+    MicSensitivityScreen(
+        onBack = onBack,
+        initialValue = initialValue,
+        onSensitivityChange = { value ->
+            val id = userId ?: return@MicSensitivityScreen
+            scope.launch {
+                runCatching { ServerApiClient.api.updateMicSensitivity(id, value) }
+            }
+        }
+    )
+}
+
 /** 알림 설정 화면 공통 래퍼 — 화면 자체는 dumb component라 여기서 실제 조회/저장 API를 붙인다.
  *  서버 필드 순서(emergencyAlert, activityAnomalyAlert, lowBatteryAlert, dailySummaryAlert)와
  *  화면의 toggleItems 순서가 반드시 같아야 한다. */
@@ -1100,14 +1127,19 @@ private fun NotificationSettingsRoute(onBack: () -> Unit) {
     )
 }
 
-/** UserLinkResponse에는 상대방 이름이 없어서(백엔드에 유저 조회 API가 아직 없음) 임시로 관계 라벨만 보여준다. */
-private fun UserLinkResponse.toLinkedPerson(role: LinkedPersonRole): LinkedPerson = LinkedPerson(
-    linkId = id.toString(),
-    name = relationLabel ?: "연동된 사용자",
-    relationLabel = relationLabel ?: "-",
-    linkedAt = linkedAt?.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
-    role = role
-)
+/** UserLinkResponse엔 상대방 이름이 없어서, /api/users/{userId}로 상대방(role 기준 반대쪽) 이름을 따로 조회한다.
+ *  조회 실패 시에만 관계 라벨로 대체한다. */
+private suspend fun UserLinkResponse.toLinkedPerson(role: LinkedPersonRole): LinkedPerson {
+    val counterpartId = if (role == LinkedPersonRole.GUARDIAN) guardianId else userId
+    val name = runCatching { ServerApiClient.api.getUser(counterpartId) }.getOrNull()?.name
+    return LinkedPerson(
+        linkId = id.toString(),
+        name = name ?: relationLabel ?: "연동된 사용자",
+        relationLabel = relationLabel ?: "-",
+        linkedAt = linkedAt?.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
+        role = role
+    )
+}
 
 private fun NavHostController.navigateUserTab(tab: AppTab) {
     val route = when (tab) {

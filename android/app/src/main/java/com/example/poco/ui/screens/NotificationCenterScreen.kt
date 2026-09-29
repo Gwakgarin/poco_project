@@ -91,7 +91,7 @@ private val mockAnomalies = listOf(
 private val mockGeneralNotices = listOf(
     GeneralNotice("오후 9:00", "일일 요약 리포트 도착", "오늘 하루 활동 요약을 확인해보세요", Icons.Filled.CheckCircle, PocoGreen),
     GeneralNotice("오전 9:05", "정상 활동 감지", "아침 루틴이 평소와 비슷하게 감지됐어요", Icons.Filled.CheckCircle, PocoGreen),
-    GeneralNotice("어제 오후 8:40", "배터리 부족 알림", "기기 배터리가 15% 이하로 떨어졌어요", Icons.Filled.BatteryAlert, PocoTextMuted)
+    GeneralNotice("어제 오후 8:40", "배터리 부족 알림", "기기 배터리가 20% 이하로 떨어졌어요", Icons.Filled.BatteryAlert, PocoTextMuted)
 )
 
 @Composable

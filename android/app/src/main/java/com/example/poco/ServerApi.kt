@@ -6,6 +6,7 @@ import retrofit2.converter.gson.GsonConverterFactory
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.PUT
 import retrofit2.http.Path
@@ -327,6 +328,9 @@ interface PocoApi {
     @GET("/api/devices")
     suspend fun getDeviceByUserId(@Query("userId") userId: Long): DeviceResponse
 
+    @PATCH("/api/devices/mic-sensitivity")
+    suspend fun updateMicSensitivity(@Query("userId") userId: Long, @Query("value") value: Float): DeviceResponse
+
     // ---- 보호자 연동 ----
     @POST("/api/link/code")
     suspend fun issueLinkCode(@Query("userId") userId: Long): LinkCodeResponse
@@ -433,11 +437,12 @@ data class AlertResponse(
 )
 
 object ServerApiClient {
-    // TODO: AWS 배포되면 여기를 실제 서버 주소로 바꿔주세요. 예: "http://<AWS 공인IP>:8080/"
-    // - USB + adb reverse tcp:8080 tcp:8080 방식으로 테스트할 땐: "http://127.0.0.1:8080/"
-    // - 에뮬레이터에서 로컬 서버 테스트할 땐: "http://10.0.2.2:8080/"
-    // - 같은 Wi-Fi에서 실기기 테스트할 땐: PC의 로컬 IP (ipconfig로 확인)
-    private const val BASE_URL = "http://127.0.0.1:8080/"
+    // AWS EC2에 배포된 실제 서버 주소.
+    // 로컬 백엔드로 다시 테스트해야 할 땐 아래 중 하나로 바꿔서 쓰면 된다:
+    // - USB + adb reverse tcp:8080 tcp:8080 방식: "http://127.0.0.1:8080/"
+    // - 에뮬레이터에서 로컬 서버 테스트: "http://10.0.2.2:8080/"
+    // - 같은 Wi-Fi에서 실기기 테스트: PC의 로컬 IP (ipconfig로 확인)
+    private const val BASE_URL = "http://3.25.227.173:8080/"
 
     private val retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)

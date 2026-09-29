@@ -37,7 +37,7 @@ private data class ToggleItem(val title: String, val description: String)
 private val toggleItems = listOf(
     ToggleItem("긴급 알림", "SOS·큰 소리 감지 시 즉시 알림"),
     ToggleItem("활동 이상 알림", "평소와 다른 생활 패턴 감지 시 알림"),
-    ToggleItem("배터리 부족 알림", "기기 배터리가 15% 이하일 때 알림"),
+    ToggleItem("배터리 부족 알림", "기기 배터리가 20% 이하일 때 알림"),
     ToggleItem("일일 요약 알림", "매일 저녁 하루 활동 요약 전송")
 )
 

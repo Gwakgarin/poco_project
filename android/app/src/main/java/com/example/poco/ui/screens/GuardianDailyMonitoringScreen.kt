@@ -34,6 +34,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.remember
 import com.example.poco.ui.components.GuardianBottomNav
 import com.example.poco.ui.components.GuardianTab
 import com.example.poco.ui.components.StatCard
@@ -44,6 +45,9 @@ import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoRedCardBackground
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 data class TimelineEntry(
     val time: String,
@@ -68,6 +72,9 @@ fun GuardianDailyMonitoringScreen(
     sleepDurationLabel: String = "-"
 ) {
     val riskCount = timeline.count { it.isRisk }
+    val todayLabel = remember {
+        LocalDate.now().format(DateTimeFormatter.ofPattern("yyyy년 M월 d일 EEEE", Locale.KOREAN))
+    }
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -79,7 +86,7 @@ fun GuardianDailyMonitoringScreen(
                         .padding(top = 16.dp, bottom = 8.dp)
                 ) {
                     Text(text = "오늘의 모니터링", color = PocoTextPrimary, fontSize = 22.sp, fontWeight = FontWeight.Bold)
-                    Text(text = "2026년 7월 21일 화요일", color = PocoTextMuted, fontSize = 13.sp)
+                    Text(text = todayLabel, color = PocoTextMuted, fontSize = 13.sp)
                 }
 
                 if (riskCount > 0) {
@@ -103,7 +110,7 @@ fun GuardianDailyMonitoringScreen(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    StatCard(modifier = Modifier.weight(1f), label = "총 활동", value = "18회")
+                    StatCard(modifier = Modifier.weight(1f), label = "총 활동", value = "${timeline.size}회")
                     StatCard(modifier = Modifier.weight(1f), label = "수면 시간", value = sleepDurationLabel)
                     StatCard(
                         modifier = Modifier.weight(1f),
