@@ -59,6 +59,7 @@ import com.example.poco.ui.components.PrimaryButton
 import com.example.poco.ui.theme.POCOTheme
 import com.example.poco.ui.theme.PocoCardBackground
 import com.example.poco.ui.theme.PocoGreen
+import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -301,6 +302,8 @@ private val RELATION_OPTIONS = listOf(
 fun RelationSelectScreen(
     onComplete: (relationLabel: String) -> Unit,
     onBack: (() -> Unit)? = null,
+    errorMessage: String? = null,
+    isSubmitting: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     var selected by remember { mutableStateOf<String?>(null) }
@@ -344,10 +347,18 @@ fun RelationSelectScreen(
                 }
             }
             Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 20.dp)) {
+                if (errorMessage != null) {
+                    Text(
+                        text = errorMessage,
+                        color = PocoRed,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(bottom = 12.dp)
+                    )
+                }
                 PrimaryButton(
-                    text = "완료",
+                    text = if (isSubmitting) "연동 중..." else "완료",
                     onClick = { onComplete(selected.orEmpty()) },
-                    enabled = isValid
+                    enabled = isValid && !isSubmitting
                 )
             }
         }

@@ -534,6 +534,8 @@ fun PocoNavHost(
             val context = LocalContext.current
             val locationStore = remember(context) { LocationStore(context) }
             val scope = rememberCoroutineScope()
+            var errorMessage by remember { mutableStateOf<String?>(null) }
+            var isSubmitting by remember { mutableStateOf(false) }
             RelationSelectScreen(
                 onComplete = { relationLabel ->
                     val code = pendingLinkCode
@@ -542,17 +544,26 @@ fun PocoNavHost(
                         navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN)
                         return@RelationSelectScreen
                     }
+                    isSubmitting = true
+                    errorMessage = null
                     scope.launch {
-                        runCatching {
+                        val redeemResult = runCatching {
                             ServerApiClient.api.redeemLinkCode(
                                 RedeemLinkRequest(code = code, guardianId = guardianId, relationLabel = relationLabel)
                             )
+                        }.getOrNull()
+                        isSubmitting = false
+                        if (redeemResult?.success == true) {
+                            pendingLinkCode = null
+                            navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN)
+                        } else {
+                            errorMessage = redeemResult?.message ?: "연동에 실패했습니다. 코드를 다시 확인해주세요."
                         }
-                        pendingLinkCode = null
-                        navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.LOGIN)
                     }
                 },
-                onBack = { navController.popBackStack() }
+                onBack = { navController.popBackStack() },
+                errorMessage = errorMessage,
+                isSubmitting = isSubmitting
             )
         }
 
@@ -992,25 +1003,36 @@ fun PocoNavHost(
             val locationStore = remember(context) { LocationStore(context) }
             val scope = rememberCoroutineScope()
             var scannedCode by remember { mutableStateOf<String?>(null) }
+            var errorMessage by remember { mutableStateOf<String?>(null) }
+            var isSubmitting by remember { mutableStateOf(false) }
             val code = scannedCode
             if (code != null) {
                 RelationSelectScreen(
                     onComplete = { relationLabel ->
                         val guardianId = locationStore.currentUserId()
-                        if (guardianId != null) {
-                            scope.launch {
-                                runCatching {
-                                    ServerApiClient.api.redeemLinkCode(
-                                        RedeemLinkRequest(code = code, guardianId = guardianId, relationLabel = relationLabel)
-                                    )
-                                }
-                                navController.popBackStack()
-                            }
-                        } else {
+                        if (guardianId == null) {
                             navController.popBackStack()
+                            return@RelationSelectScreen
+                        }
+                        isSubmitting = true
+                        errorMessage = null
+                        scope.launch {
+                            val redeemResult = runCatching {
+                                ServerApiClient.api.redeemLinkCode(
+                                    RedeemLinkRequest(code = code, guardianId = guardianId, relationLabel = relationLabel)
+                                )
+                            }.getOrNull()
+                            isSubmitting = false
+                            if (redeemResult?.success == true) {
+                                navController.popBackStack()
+                            } else {
+                                errorMessage = redeemResult?.message ?: "연동에 실패했습니다. 코드를 다시 확인해주세요."
+                            }
                         }
                     },
-                    onBack = { scannedCode = null }
+                    onBack = { scannedCode = null },
+                    errorMessage = errorMessage,
+                    isSubmitting = isSubmitting
                 )
             } else {
                 QrScanScreen(

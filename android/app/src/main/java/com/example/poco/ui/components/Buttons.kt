@@ -41,12 +41,12 @@ fun PrimaryButton(
             .height(52.dp)
             .shadow(
                 elevation = if (enabled) 8.dp else 0.dp,
-                shape = RoundedCornerShape(26.dp),
+                shape = RoundedCornerShape(14.dp),
                 clip = false,
                 ambientColor = resolvedColor.copy(alpha = 0.35f),
                 spotColor = resolvedColor.copy(alpha = 0.35f)
             )
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(resolvedColor)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
@@ -66,7 +66,7 @@ fun SecondaryButton(
         modifier = modifier
             .fillMaxWidth()
             .height(52.dp)
-            .clip(RoundedCornerShape(26.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(PocoCardBackground)
             .clickable(enabled = enabled, onClick = onClick),
         contentAlignment = Alignment.Center
