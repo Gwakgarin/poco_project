@@ -27,6 +27,7 @@ import com.example.poco.ui.components.PocoCard
 import com.example.poco.ui.components.PocoTopBar
 import com.example.poco.ui.theme.POCOTheme
 import com.example.poco.ui.theme.PocoGreen
+import com.example.poco.ui.theme.PocoRed
 import com.example.poco.ui.theme.PocoTextMuted
 import com.example.poco.ui.theme.PocoTextPrimary
 
@@ -35,7 +36,8 @@ fun MicSensitivityScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     initialValue: Float = 0.55f,
-    onSensitivityChange: (Float) -> Unit = {}
+    onSensitivityChange: (Float) -> Unit = {},
+    errorMessage: String? = null
 ) {
     var sensitivity by remember(initialValue) { mutableFloatStateOf(initialValue) }
     val level = when {
@@ -55,6 +57,11 @@ fun MicSensitivityScreen(
                     fontSize = 14.sp
                 )
                 Spacer(modifier = Modifier.height(24.dp))
+
+                if (errorMessage != null) {
+                    Text(text = errorMessage, color = PocoRed, fontSize = 13.sp)
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
 
                 PocoCard {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

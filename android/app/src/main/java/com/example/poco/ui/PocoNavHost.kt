@@ -664,10 +664,11 @@ fun PocoNavHost(
                 onInviteGuardian = { navController.navigate(PocoRoutes.QR_SHOW) },
                 guardians = guardians,
                 onUnlink = { person ->
-                    guardians = guardians.filterNot { it.linkId == person.linkId }
                     scope.launch {
-                        person.linkId.toLongOrNull()?.let { linkId ->
-                            runCatching { ServerApiClient.api.deleteLink(linkId) }
+                        val linkId = person.linkId.toLongOrNull() ?: return@launch
+                        val result = runCatching { ServerApiClient.api.deleteLink(linkId) }
+                        if (result.isSuccess) {
+                            guardians = guardians.filterNot { it.linkId == person.linkId }
                         }
                     }
                 }
@@ -987,13 +988,14 @@ fun PocoNavHost(
                 onBack = { navController.popBackStack() },
                 linkedUsers = linkedUsers,
                 onUnlink = { person ->
-                    linkedUsers = linkedUsers.filterNot { it.linkId == person.linkId }
                     scope.launch {
-                        person.linkId.toLongOrNull()?.let { linkId ->
-                            runCatching { ServerApiClient.api.deleteLink(linkId) }
+                        val linkId = person.linkId.toLongOrNull() ?: return@launch
+                        val result = runCatching { ServerApiClient.api.deleteLink(linkId) }
+                        if (result.isSuccess) {
+                            linkedUsers = linkedUsers.filterNot { it.linkId == person.linkId }
+                            navController.popBackStack()
                         }
                     }
-                    navController.popBackStack()
                 }
             )
         }
@@ -1102,6 +1104,7 @@ private fun MicSensitivityRoute(onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var userId by remember { mutableStateOf<Long?>(null) }
     var initialValue by remember { mutableStateOf(0.55f) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(Unit) {
         val id = locationStore.currentUserId() ?: return@LaunchedEffect
         userId = id
@@ -1114,9 +1117,11 @@ private fun MicSensitivityRoute(onBack: () -> Unit) {
         onSensitivityChange = { value ->
             val id = userId ?: return@MicSensitivityScreen
             scope.launch {
-                runCatching { ServerApiClient.api.updateMicSensitivity(id, value) }
+                val result = runCatching { ServerApiClient.api.updateMicSensitivity(id, value) }
+                errorMessage = if (result.isFailure) "감도 저장에 실패했어요. 다시 시도해주세요." else null
             }
-        }
+        },
+        errorMessage = errorMessage
     )
 }
 
