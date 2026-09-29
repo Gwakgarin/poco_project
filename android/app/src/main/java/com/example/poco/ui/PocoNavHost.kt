@@ -297,9 +297,6 @@ object PocoRoutes {
 /** 보호자 위치 화면이 서버에서 최신 좌표를 다시 읽어오는 주기. 환자 기기의 업로드 주기(LocationTracker 30초)에 맞춘다. */
 private const val LOCATION_REFRESH_INTERVAL_MS = 30_000L
 
-// TODO: replace with the linked user's real phone number once the backend exposes it.
-private const val LINKED_USER_PHONE_NUMBER = "01000000000"
-
 /** SIGN_UP 화면에서 입력받은 값을 ROLE_SELECT에서 실제 signup() 호출 때까지 들고 있기 위한 홀더. */
 private data class PendingSignUp(
     val name: String,
@@ -336,7 +333,7 @@ private fun signUpErrorMessage(throwable: Throwable): String {
     }
 }
 
-private data class MonitoredUser(val device: DeviceResponse, val relationLabel: String, val name: String?)
+private data class MonitoredUser(val device: DeviceResponse, val relationLabel: String, val name: String?, val phoneNumber: String?)
 
 /** 보호자 화면들은 자기 자신의 backendDeviceId가 아니라, 연동된(GUARDIAN으로 링크된) 사용자의 기기를 봐야 한다.
  *  링크 목록에서 첫 번째 연동 사용자를 찾아 그 사용자의 기기 정보를 조회한다. */
@@ -344,8 +341,13 @@ private suspend fun resolveMonitoredUser(locationStore: LocationStore): Monitore
     val guardianId = locationStore.currentUserId() ?: return null
     val link = ServerApiClient.api.getMyLinks(guardianId, "GUARDIAN").firstOrNull() ?: return null
     val device = ServerApiClient.api.getDeviceByUserId(link.userId)
-    val name = runCatching { ServerApiClient.api.getUser(link.userId).name }.getOrNull()
-    return MonitoredUser(device = device, relationLabel = link.relationLabel ?: "연동된 사용자", name = name)
+    val user = runCatching { ServerApiClient.api.getUser(link.userId) }.getOrNull()
+    return MonitoredUser(
+        device = device,
+        relationLabel = link.relationLabel ?: "연동된 사용자",
+        name = user?.name,
+        phoneNumber = user?.phoneNumber
+    )
 }
 
 /** 응급 화면들이 다룰 기기 id. 사용자(role=0)면 자기 기기, 보호자면 연동된 사용자의 기기를 반환한다. */
@@ -1048,28 +1050,44 @@ fun PocoNavHost(
             val locationStore = remember(context) { LocationStore(context) }
             val scope = rememberCoroutineScope()
             var targetDeviceId by remember { mutableStateOf<Long?>(null) }
+            var targetPhoneNumber by remember { mutableStateOf<String?>(null) }
+            var dispatchErrorMessage by remember { mutableStateOf<String?>(null) }
+            var isDispatching by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 targetDeviceId = resolveEmergencyTargetDeviceId(locationStore)
+                targetPhoneNumber = runCatching { resolveMonitoredUser(locationStore) }.getOrNull()?.phoneNumber
             }
             EmergencyGuardianScreen(
                 onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
                 onDispatch = {
                     val deviceId = targetDeviceId
                     val dispatchedBy = locationStore.currentUserId()
-                    if (deviceId != null && dispatchedBy != null) {
-                        scope.launch {
-                            runCatching {
-                                ServerApiClient.api.dispatchEmergency(EmergencyDispatchRequest(deviceId, dispatchedBy))
-                            }
+                    if (deviceId == null || dispatchedBy == null) {
+                        dispatchErrorMessage = "연동된 사용자 정보를 확인할 수 없어요. 잠시 후 다시 시도해주세요."
+                        return@EmergencyGuardianScreen
+                    }
+                    isDispatching = true
+                    dispatchErrorMessage = null
+                    scope.launch {
+                        val result = runCatching {
+                            ServerApiClient.api.dispatchEmergency(EmergencyDispatchRequest(deviceId, dispatchedBy))
+                        }.getOrNull()
+                        isDispatching = false
+                        if (result?.success == true) {
                             navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED)
+                        } else {
+                            dispatchErrorMessage = result?.message ?: "신고 요청에 실패했어요. 다시 시도해주세요."
                         }
-                    } else {
-                        navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED)
                     }
                 },
                 onCall = {
-                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$LINKED_USER_PHONE_NUMBER")))
-                }
+                    val phoneNumber = targetPhoneNumber
+                    if (phoneNumber != null) {
+                        context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber")))
+                    }
+                },
+                dispatchErrorMessage = dispatchErrorMessage,
+                isDispatching = isDispatching
             )
         }
     }

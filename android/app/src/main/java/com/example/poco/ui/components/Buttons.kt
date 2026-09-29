@@ -84,9 +84,10 @@ fun SecondaryButton(
 fun DangerButton(
     text: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true
 ) {
-    PrimaryButton(text = text, onClick = onClick, modifier = modifier, containerColor = PocoRed)
+    PrimaryButton(text = text, onClick = onClick, modifier = modifier, containerColor = PocoRed, enabled = enabled)
 }
 
 @Composable

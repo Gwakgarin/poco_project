@@ -143,7 +143,9 @@ fun EmergencyGuardianScreen(
     onCheckLocation: () -> Unit,
     onDispatch: () -> Unit,
     onCall: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dispatchErrorMessage: String? = null,
+    isDispatching: Boolean = false
 ) {
     var showDispatchConfirm by remember { mutableStateOf(false) }
 
@@ -199,7 +201,14 @@ fun EmergencyGuardianScreen(
                     Text(text = "마지막 위치: 자택 인근 250m", color = PocoTextPrimary, fontSize = 14.sp)
                 }
                 SecondaryButton(text = "위치 확인하기", onClick = onCheckLocation)
-                DangerButton(text = "출동하기", onClick = { showDispatchConfirm = true })
+                if (dispatchErrorMessage != null) {
+                    Text(text = dispatchErrorMessage, color = PocoRed, fontSize = 13.sp)
+                }
+                DangerButton(
+                    text = if (isDispatching) "신고 접수 중..." else "출동하기",
+                    onClick = { showDispatchConfirm = true },
+                    enabled = !isDispatching
+                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
