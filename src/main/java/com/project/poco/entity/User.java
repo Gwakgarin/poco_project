@@ -34,6 +34,11 @@ public class User {
 
     private LocalDateTime joinedAt;
 
+    // FCM 푸시 토큰. 로그인/앱 실행 시 안드로이드가 발급받아서 등록.
+    // 토큰이 없을 수도 있어서 nullable. 앱이 재설치되거나 토큰이 갱신되면 덮어씀.
+    @Column(length = 500)
+    private String fcmToken;
+
     @PrePersist
     public void prePersist() {
         if (joinedAt == null) {

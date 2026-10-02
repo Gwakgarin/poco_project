@@ -38,4 +38,17 @@ public class UserController {
     public User getOne(@PathVariable Long userId) {
         return userService.findById(userId).orElse(null);
     }
+
+    // FCM 토큰 등록/갱신. 안드로이드가 로그인 직후, 그리고 토큰이 바뀔 때마다 호출.
+    // body 예시: {"fcmToken":"eXaMpLeTokenString..."}
+    @PutMapping("/{userId}/fcm-token")
+    public Map<String, Object> updateFcmToken(@PathVariable Long userId, @RequestBody Map<String, String> body) {
+        String token = body.get("fcmToken");
+        if (token == null || token.isBlank()) {
+            return Map.of("success", false, "message", "fcmToken은 필수입니다.");
+        }
+        return userService.updateFcmToken(userId, token)
+                .<Map<String, Object>>map(user -> Map.of("success", true))
+                .orElseGet(() -> Map.of("success", false, "message", "사용자를 찾을 수 없습니다."));
+    }
 }

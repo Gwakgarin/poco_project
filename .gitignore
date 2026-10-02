@@ -39,3 +39,5 @@ out/
 ### Local secrets (커밋 금지) ###
 application-local.properties
 .env
+*firebase*.json
+*-firebase-adminsdk-*.json

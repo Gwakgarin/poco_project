@@ -60,4 +60,12 @@ public class UserService {
     public Optional<User> findById(Long id) {
         return userRepository.findById(id);
     }
+
+    // 안드로이드가 로그인/앱 실행 시 FCM 토큰을 발급받으면 이걸로 등록/갱신
+    public Optional<User> updateFcmToken(Long userId, String fcmToken) {
+        return userRepository.findById(userId).map(user -> {
+            user.setFcmToken(fcmToken);
+            return userRepository.save(user);
+        });
+    }
 }
