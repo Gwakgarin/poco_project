@@ -2,6 +2,7 @@ package com.example.poco.location
 
 import android.util.Log
 import com.example.poco.LatestLocationRequest
+import com.example.poco.OutingEventRequest
 import com.example.poco.ServerApiClient
 import com.example.poco.toServerDateTime
 import java.io.Closeable
@@ -49,6 +50,39 @@ class LocationUploadManager(
             } catch (error: Throwable) {
                 Log.e("POCO", "Latest location upload failed", error)
                 "Location save failed: ${error.message ?: error::class.java.simpleName}"
+            }
+            onResult(status)
+        }
+    }
+
+    /**
+     * HOME<->OUTSIDE 상태가 실제로 바뀐 순간(= 외출 또는 귀가) 하나의 이벤트로 저장한다.
+     * 매 위치 갱신마다 부르는 게 아니라, HomeStateMachine이 changed=true를 돌려줄 때만 호출해야 한다.
+     */
+    fun uploadOutingEvent(transitionType: String, measuredAtEpochMs: Long) {
+        executor.execute {
+            val deviceId = locationStore.backendDeviceId()
+            if (deviceId == null) {
+                Log.w("POCO", "Outing event upload skipped: device not registered yet")
+                onResult("Outing event save skipped: device not registered yet")
+                return@execute
+            }
+            val status = try {
+                val response = ServerApiClient.api.createOutingEvent(
+                    OutingEventRequest(
+                        deviceId = deviceId,
+                        transitionType = transitionType,
+                        timestamp = measuredAtEpochMs.toServerDateTime()
+                    )
+                ).execute()
+                if (response.isSuccessful) {
+                    "Outing event saved ($transitionType): HTTP ${response.code()}"
+                } else {
+                    "Outing event save failed: HTTP ${response.code()}"
+                }
+            } catch (error: Throwable) {
+                Log.e("POCO", "Outing event upload failed", error)
+                "Outing event save failed: ${error.message ?: error::class.java.simpleName}"
             }
             onResult(status)
         }

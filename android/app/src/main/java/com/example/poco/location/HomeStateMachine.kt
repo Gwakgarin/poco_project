@@ -23,20 +23,22 @@ class HomeStateMachine(initialState: HomeState = HomeState.UNKNOWN) {
             homeZone.center
         )
         val accuracy = sample.accuracyMeters.coerceAtLeast(0f).toDouble()
+        val previousState = state
         // 정확도를 현재 위치 주변의 오차 반경으로 보고 확실한 경우에만 상태를 변경한다.
         val nextState = when {
             distance + accuracy <= homeZone.radiusMeters -> HomeState.HOME
             distance - accuracy > homeZone.radiusMeters -> HomeState.OUTSIDE
-            else -> state
+            else -> previousState
         }
-        val certain = nextState != state ||
+        val certain = nextState != previousState ||
             distance + accuracy <= homeZone.radiusMeters ||
             distance - accuracy > homeZone.radiusMeters
-        val changed = nextState != state
+        val changed = nextState != previousState
         state = nextState
 
         return HomeStateResult(
             state = state,
+            previousState = previousState,
             distanceMeters = distance,
             changed = changed,
             isCertain = certain

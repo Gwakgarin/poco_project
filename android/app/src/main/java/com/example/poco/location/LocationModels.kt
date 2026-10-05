@@ -36,9 +36,12 @@ data class HomeZone(
     }
 }
 
-/** 상태 머신이 계산한 상태, 집과의 거리, 상태 변경 및 확실성 정보. */
+/** 상태 머신이 계산한 상태, 집과의 거리, 상태 변경 및 확실성 정보.
+ *  previousState는 이번 업데이트 직전의 상태 - 외출/귀가 이벤트를 만들 때
+ *  HOME<->OUTSIDE 사이의 실제 전환인지(= UNKNOWN에서 처음 확정된 것은 제외) 판단하는 데 쓴다. */
 data class HomeStateResult(
     val state: HomeState,
+    val previousState: HomeState,
     val distanceMeters: Double,
     val changed: Boolean,
     val isCertain: Boolean

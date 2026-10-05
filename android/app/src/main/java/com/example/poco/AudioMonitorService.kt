@@ -78,6 +78,20 @@ class AudioMonitorService : Service() {
             onLocation = { sample, stateResult ->
                 val state = stateResult?.state ?: HomeState.UNKNOWN
                 locationUploadManager.upload(sample, state)
+                // HOME<->OUTSIDE 실제 전환일 때만 외출/귀가 이벤트 하나로 저장한다.
+                // previousState가 UNKNOWN이면(첫 판정, 홈존 재설정 직후 등) 진짜 외출/귀가가 아니므로 제외.
+                if (stateResult != null && stateResult.changed &&
+                    stateResult.previousState != HomeState.UNKNOWN
+                ) {
+                    val transitionType = when (stateResult.state) {
+                        HomeState.OUTSIDE -> "HOME_TO_OUTSIDE"
+                        HomeState.HOME -> "OUTSIDE_TO_HOME"
+                        HomeState.UNKNOWN -> null
+                    }
+                    transitionType?.let {
+                        locationUploadManager.uploadOutingEvent(it, sample.measuredAtEpochMs)
+                    }
+                }
                 sendLocation(sample, state, stateResult?.distanceMeters, stateResult?.isCertain)
             },
             onError = { error ->
