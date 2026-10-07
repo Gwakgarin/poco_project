@@ -1,5 +1,6 @@
 package com.example.poco.ui
 
+import android.util.Log
 import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.net.Uri
@@ -48,6 +49,7 @@ import com.example.poco.location.HomeState
 import com.example.poco.location.LocationSample
 import com.example.poco.location.LocationStore
 import com.example.poco.location.PatientLocationRepository
+import com.example.poco.push.PushTokenRegistrar
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -448,6 +450,7 @@ fun PocoNavHost(
                                 errorMessage = null
                                 locationStore.saveSession(user.id, user.role, user.name, user.email, user.joinedAt)
                                 runCatching { registerDeviceIfUser(locationStore, user.id, user.role) }
+                                runCatching { PushTokenRegistrar.register(context) } // FCM 토큰 서버 등록
                                 val homeRoute = if (user.role == 0) PocoRoutes.USER_HOME else PocoRoutes.GUARDIAN_HOME
                                 navController.navigateTopLevel(homeRoute, PocoRoutes.LOGIN)
                             }
@@ -491,10 +494,12 @@ fun PocoNavHost(
                         )
                         locationStore.saveSession(user.id, user.role, user.name, user.email, user.joinedAt)
                         runCatching { registerDeviceIfUser(locationStore, user.id, user.role) }
+                        runCatching { PushTokenRegistrar.register(context) } // FCM 토큰 서버 등록
                     }.onSuccess {
                         pendingSignUp = null
                         onDone()
                     }.onFailure { throwable ->
+                        Log.e("POCO", "Signup failed", throwable)
                         isSubmitting = false
                         errorMessage = signUpErrorMessage(throwable)
                     }

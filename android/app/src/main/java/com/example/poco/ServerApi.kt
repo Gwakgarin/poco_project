@@ -309,6 +309,12 @@ data class OutingEventResponse(
 // API 인터페이스
 // =========================================================
 
+/** FCM 토큰 등록 요청. 서버: PUT /api/users/{userId}/fcm-token  body {"fcmToken":"..."} */
+data class FcmTokenRequest(val fcmToken: String)
+
+/** 서버가 {"success":true} 또는 {"success":false,"message":"..."} 로 돌려주는 단순 응답 */
+data class SimpleResult(val success: Boolean = false, val message: String? = null)
+
 interface PocoApi {
 
     // ---- 회원가입 / 로그인 ----
@@ -320,6 +326,10 @@ interface PocoApi {
 
     @GET("/api/users/{userId}")
     suspend fun getUser(@Path("userId") userId: Long): UserResponse
+
+    // ---- FCM 푸시 토큰 등록 ----
+    @PUT("/api/users/{userId}/fcm-token")
+    suspend fun updateFcmToken(@Path("userId") userId: Long, @Body request: FcmTokenRequest): SimpleResult
 
     // ---- 기기 ----
     @POST("/api/devices")

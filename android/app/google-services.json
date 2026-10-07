@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "729283730608",
+    "project_id": "poco-project-ac88f",
+    "storage_bucket": "poco-project-ac88f.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:729283730608:android:989cd8d3efff86a570af75",
+        "android_client_info": {
+          "package_name": "com.example.poco"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBrRaxDn_PtnD4qN0s-u7KcM8KoKT0OHCo"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

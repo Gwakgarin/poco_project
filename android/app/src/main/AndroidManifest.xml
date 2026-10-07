@@ -11,6 +11,7 @@
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
     <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-feature android:name="android.hardware.camera" android:required="false"/>
 
     <application
@@ -44,6 +45,19 @@
             android:name=".AudioMonitorService"
             android:exported="false"
             android:foregroundServiceType="microphone|location" />
+
+        <!-- FCM 푸시 수신 서비스 -->
+        <service
+            android:name=".push.PocoMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+        <!-- 앱이 백그라운드일 때 시스템이 띄우는 푸시도 이 채널(중요도 높음)을 쓰게 한다 -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="poco_push_alerts" />
     </application>
 
 </manifest>

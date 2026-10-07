@@ -3,6 +3,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 // Google Maps API 키는 깃에 올리지 않고 각자 android/local.properties 에 MAPS_API_KEY=... 로 둔다.
@@ -76,6 +77,10 @@ dependencies {
     implementation("androidx.camera:camera-view:1.4.1")
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
     implementation("com.google.zxing:core:3.5.3")
+
+    // FCM 푸시 알림 수신
+    implementation(platform("com.google.firebase:firebase-bom:33.16.0"))
+    implementation("com.google.firebase:firebase-messaging")
 
     testImplementation(libs.junit)
     androidTestImplementation(platform(libs.androidx.compose.bom))

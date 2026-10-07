@@ -21,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
 import com.example.poco.location.GeoPoint
 import com.example.poco.location.HomeState
 import com.example.poco.location.HomeZone
@@ -29,9 +30,12 @@ import com.example.poco.location.LocationStore
 import com.example.poco.ui.PocoNavHost
 import com.example.poco.ui.screens.UserHomeUiState
 import com.example.poco.ui.theme.POCOTheme
+import com.example.poco.push.PushNotifications
+import com.example.poco.push.PushTokenRegistrar
 import java.text.SimpleDateFormat
 import java.util.Locale
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,12 +52,26 @@ class MainActivity : ComponentActivity() {
                 add(Manifest.permission.ACCESS_COARSE_LOCATION)
                 add(Manifest.permission.ACCESS_FINE_LOCATION)
             }
+            // Android 13+ 는 알림 권한을 런타임에 받아야 푸시가 화면에 뜬다
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+                checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+            ) {
+                add(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
 
         if (missingPermissions.isEmpty()) {
             startAudioMonitorService()
         } else {
             requestPermissions(missingPermissions.toTypedArray(), REQUEST_MONITOR_PERMISSIONS)
+        }
+
+        // FCM: 알림 채널 만들고, (로그인 상태면) 현재 FCM 토큰을 서버에 등록. 토큰은 Logcat(태그 PocoFCM)에도 찍힘.
+        PushNotifications.ensureChannel(this)
+        android.util.Log.e("PocoFCM", "MainActivity onCreate: 토큰 요청 시작")
+        lifecycleScope.launch {
+            runCatching { PushTokenRegistrar.register(this@MainActivity) }
+                .onFailure { android.util.Log.e("PocoFCM", "토큰 등록 실패", it) }
         }
 
         setContent {
