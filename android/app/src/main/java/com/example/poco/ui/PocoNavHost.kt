@@ -76,6 +76,7 @@ import com.example.poco.ui.screens.LoginFormScreen
 import com.example.poco.ui.screens.LoginScreen
 import com.example.poco.ui.screens.MicSensitivityScreen
 import com.example.poco.ui.screens.ChangeStatus
+import com.example.poco.ui.screens.DangerNotificationItem
 import com.example.poco.ui.screens.GeneralNotice
 import com.example.poco.ui.screens.NotificationCenterScreen
 import com.example.poco.ui.screens.RegularityLevel
@@ -109,16 +110,6 @@ private fun iconForEvent(label: String?): androidx.compose.ui.graphics.vector.Im
         Icons.Filled.Restaurant
     } else {
         Icons.Filled.VolumeUp
-    }
-}
-
-/** danger-alert 의 reason/soundLabel 문구를 보고 이상탐지 카테고리를 추정한다 (정식 이상탐지 로직이 붙기 전까지의 임시 매핑). */
-private fun anomalyTypeFor(reason: String?, soundLabel: String?): AnomalyType {
-    val text = "${reason.orEmpty()} ${soundLabel.orEmpty()}"
-    return when {
-        text.contains("식사") || text.contains("meal", ignoreCase = true) -> AnomalyType.MEAL_IRREGULAR
-        text.contains("외출") || text.contains("outing", ignoreCase = true) -> AnomalyType.OUTING_DECREASE
-        else -> AnomalyType.COGNITIVE_DECREASE
     }
 }
 
@@ -181,10 +172,11 @@ private fun DangerAlertResponse.toTimelineEntry() = TimelineEntry(
     isRisk = true
 )
 
-private fun DangerAlertResponse.toAnomalyAlert() = AnomalyAlert(
+/** 알림 센터의 "위험 알림" 섹션용. 이상탐지(AnomalyAlert)와 섞지 않는다 - 예전엔 anomalyTypeFor()가
+ *  비명/경적을 억지로 식사·외출·인지활동 카테고리에 끼워 맞춰서 "대화·인지 자극 감소"로 잘못 표시되던 문제가 있었다. */
+private fun DangerAlertResponse.toDangerNotificationItem() = DangerNotificationItem(
     time = detectedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
-    type = anomalyTypeFor(reason, soundLabel),
-    evidence = dangerReasonLabel(reason, soundLabel)
+    label = dangerReasonLabel(reason, soundLabel)
 )
 
 /** /api/alerts에 실제로 생성/조회된 이상탐지 알림을 화면 모델로 바꾼다. */
@@ -899,6 +891,7 @@ fun PocoNavHost(
         composable(PocoRoutes.GUARDIAN_ALERTS) {
             val context = LocalContext.current
             val locationStore = remember(context) { LocationStore(context) }
+            var dangerAlerts by remember { mutableStateOf(emptyList<DangerNotificationItem>()) }
             var anomalies by remember { mutableStateOf(emptyList<AnomalyAlert>()) }
             var generalNotices by remember { mutableStateOf(emptyList<GeneralNotice>()) }
             LaunchedEffect(Unit) {
@@ -910,6 +903,11 @@ fun PocoNavHost(
 
                 val dangerAlertsList = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
                 val existingAnomalyAlerts = runCatching { ServerApiClient.api.getAlerts(deviceId) }.getOrDefault(emptyList())
+
+                // "위험 알림" 섹션: 비명·반복 경적을 최신순으로 보여준다. 이상탐지(아래 섹션)와는 별도.
+                dangerAlerts = dangerAlertsList
+                    .sortedByDescending { it.detectedAt.fromServerDateTime() ?: 0L }
+                    .map { it.toDangerNotificationItem() }
 
                 // 이상탐지: 이미 만들어둔 장기추세 분석 엔진(TrendAggregator)의 판정을 그대로 재사용해서
                 // 기준(20% 이상 변화 + 최소 유효기록일)을 통과하면 이상탐지 알림을 생성한다.
@@ -950,15 +948,15 @@ fun PocoNavHost(
                     }.getOrNull()
                 }
 
-                // danger_alerts(비명·경적)는 "위험 알림"이라 홈 화면 주의 배너·타임라인에서 이미 보여준다.
-                // 여기(이상탐지)엔 진짜 이상탐지 alerts 테이블 것만 넣는다 — 안 그러면 anomalyTypeFor()의
-                // fallback 때문에 "비명 감지"까지 전부 "대화·인지 자극 감소"로 오분류돼 보인다.
+                // danger_alerts(비명·경적)는 위에서 dangerAlerts(= "위험 알림" 섹션)로 따로 보여주므로
+                // 여기(이상탐지)엔 진짜 이상탐지 alerts 테이블 것만 넣는다.
                 anomalies = (existingAnomalyAlerts.map { it.toAnomalyAlert() } +
                     createdAlerts.map { it.toAnomalyAlert() })
             }
             NotificationCenterScreen(
                 selectedTab = GuardianTab.ALERTS,
                 onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
+                dangerAlerts = dangerAlerts,
                 anomalies = anomalies,
                 generalNotices = generalNotices
             )

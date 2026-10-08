@@ -23,6 +23,7 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.DirectionsWalk
 import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Restaurant
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -62,6 +63,13 @@ data class AnomalyAlert(
     val evidence: String
 )
 
+/** 비명·반복 경적처럼 즉시 위험한 danger_alerts 1건. 식사/외출/인지활동 "추세" 이상탐지(AnomalyAlert)와는
+ *  성격이 달라 같은 섹션에 섞지 않고 "위험 알림"으로 따로 보여준다. */
+data class DangerNotificationItem(
+    val time: String,
+    val label: String
+)
+
 data class GeneralNotice(
     val time: String,
     val title: String,
@@ -88,6 +96,11 @@ private val mockAnomalies = listOf(
     )
 )
 
+private val mockDangerAlerts = listOf(
+    DangerNotificationItem(time = "오늘 오후 4:12", label = "비명 감지"),
+    DangerNotificationItem(time = "어제 오후 11:30", label = "반복 경적 감지")
+)
+
 private val mockGeneralNotices = listOf(
     GeneralNotice("오후 9:00", "일일 요약 리포트 도착", "오늘 하루 활동 요약을 확인해보세요", Icons.Filled.CheckCircle, PocoGreen),
     GeneralNotice("오전 9:05", "정상 활동 감지", "아침 루틴이 평소와 비슷하게 감지됐어요", Icons.Filled.CheckCircle, PocoGreen),
@@ -99,6 +112,7 @@ fun NotificationCenterScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
     modifier: Modifier = Modifier,
+    dangerAlerts: List<DangerNotificationItem> = mockDangerAlerts,
     anomalies: List<AnomalyAlert> = mockAnomalies,
     generalNotices: List<GeneralNotice> = mockGeneralNotices
 ) {
@@ -106,7 +120,7 @@ fun NotificationCenterScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             Column(modifier = Modifier.weight(1f)) {
                 PocoTopBar(title = "알림 센터")
-                LazyColumnBody(anomalies = anomalies, generalNotices = generalNotices)
+                LazyColumnBody(dangerAlerts = dangerAlerts, anomalies = anomalies, generalNotices = generalNotices)
             }
             GuardianBottomNav(selectedTab = selectedTab, onTabSelected = onTabSelected)
         }
@@ -114,11 +128,21 @@ fun NotificationCenterScreen(
 }
 
 @Composable
-private fun LazyColumnBody(anomalies: List<AnomalyAlert>, generalNotices: List<GeneralNotice>) {
+private fun LazyColumnBody(
+    dangerAlerts: List<DangerNotificationItem>,
+    anomalies: List<AnomalyAlert>,
+    generalNotices: List<GeneralNotice>
+) {
     LazyColumn(
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
+        item {
+            SectionHeader(title = "위험 알림", count = dangerAlerts.size, countColor = PocoRed)
+        }
+        items(dangerAlerts) { alert -> DangerAlertCard(alert) }
+
+        item { Spacer(modifier = Modifier.height(8.dp)) }
         item {
             SectionHeader(title = "이상 탐지", count = anomalies.size, countColor = PocoRed)
         }
@@ -145,6 +169,29 @@ private fun SectionHeader(title: String, count: Int, countColor: Color) {
                 .padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
             Text(text = "$count", color = countColor, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
+@Composable
+private fun DangerAlertCard(item: DangerNotificationItem) {
+    PocoCard(modifier = Modifier.fillMaxWidth(), containerColor = PocoRedCardBackground) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(38.dp)
+                    .clip(CircleShape)
+                    .background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(imageVector = Icons.Filled.Warning, contentDescription = null, tint = PocoRed, modifier = Modifier.size(20.dp))
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = item.label, color = PocoRed, fontSize = 15.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(text = item.time, color = PocoTextMuted, fontSize = 12.sp)
+            }
         }
     }
 }
