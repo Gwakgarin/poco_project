@@ -144,6 +144,10 @@ fun EmergencyGuardianScreen(
     onDispatch: () -> Unit,
     onCall: () -> Unit,
     modifier: Modifier = Modifier,
+    /** "{이름} · {N분 전} · {비명/경적 감지}" 형태. 연동된 사용자와 최근 위험 알림을 못 불러온 동안의 기본값은 호출부에서 넘긴다. */
+    patientSummaryLabel: String = "연동된 사용자 · 확인 중",
+    /** "집 안" / "외출 중" 등 실제 위치 조회 결과. 자택과의 거리(m)는 서버가 내려주지 않아 표시하지 않는다. */
+    locationSummaryLabel: String = "위치 정보를 불러오는 중...",
     dispatchErrorMessage: String? = null,
     isDispatching: Boolean = false
 ) {
@@ -178,7 +182,7 @@ fun EmergencyGuardianScreen(
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "어머니 · 5분 전 · 응답 없음",
+                    text = patientSummaryLabel,
                     color = Color.White.copy(alpha = 0.7f),
                     fontSize = 14.sp
                 )
@@ -198,7 +202,7 @@ fun EmergencyGuardianScreen(
                 ) {
                     Icon(imageVector = Icons.Filled.LocationOn, contentDescription = null, tint = PocoRed)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text(text = "마지막 위치: 자택 인근 250m", color = PocoTextPrimary, fontSize = 14.sp)
+                    Text(text = "마지막 위치: $locationSummaryLabel", color = PocoTextPrimary, fontSize = 14.sp)
                 }
                 SecondaryButton(text = "위치 확인하기", onClick = onCheckLocation)
                 if (dispatchErrorMessage != null) {

@@ -1058,13 +1058,48 @@ fun PocoNavHost(
             val scope = rememberCoroutineScope()
             var targetDeviceId by remember { mutableStateOf<Long?>(null) }
             var targetPhoneNumber by remember { mutableStateOf<String?>(null) }
+            var patientSummaryLabel by remember { mutableStateOf("연동된 사용자 · 확인 중") }
+            var locationSummaryLabel by remember { mutableStateOf("위치 정보를 불러오는 중...") }
             var dispatchErrorMessage by remember { mutableStateOf<String?>(null) }
             var isDispatching by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
-                targetDeviceId = resolveEmergencyTargetDeviceId(locationStore)
-                targetPhoneNumber = runCatching { resolveMonitoredUser(locationStore) }.getOrNull()?.phoneNumber
+                val deviceId = resolveEmergencyTargetDeviceId(locationStore)
+                targetDeviceId = deviceId
+                val monitoredUser = runCatching { resolveMonitoredUser(locationStore) }.getOrNull()
+                targetPhoneNumber = monitoredUser?.phoneNumber
+                if (deviceId == null) {
+                    patientSummaryLabel = "연동된 사용자를 확인할 수 없어요"
+                    locationSummaryLabel = "위치 정보를 불러오지 못했어요"
+                    return@LaunchedEffect
+                }
+                val name = monitoredUser?.name ?: monitoredUser?.relationLabel ?: "연동된 사용자"
+                // 가장 최근 위험 알림의 종류·시각으로 요약 문구를 만든다. 알림이 아직 없으면 이름만 보여준다.
+                val latestAlert = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }
+                    .getOrDefault(emptyList())
+                    .maxByOrNull { it.detectedAt ?: "" }
+                patientSummaryLabel = if (latestAlert != null) {
+                    val detectedAtMs = latestAlert.detectedAt?.fromServerDateTime()
+                    val agoLabel = detectedAtMs?.let { locationUpdatedLabel(it).removeSuffix(" 업데이트") } ?: "시각 확인 중"
+                    "$name · $agoLabel · ${dangerReasonLabel(latestAlert.reason, latestAlert.soundLabel)}"
+                } else {
+                    "$name · 위험 알림 확인 중"
+                }
+                // 지도 화면과 같은 방식(집 안/외출 중 + 정확도)으로 위치를 보여준다.
+                // 자택과의 실제 거리(m)는 서버가 내려주지 않아 만들어낼 수 없으므로 표시하지 않는다.
+                runCatching { PatientLocationRepository().getLatest(deviceId) }
+                    .onSuccess { (sample, state) ->
+                        val stateText = when (state) {
+                            HomeState.HOME -> "집 안"
+                            HomeState.OUTSIDE -> "외출 중"
+                            HomeState.UNKNOWN -> "위치 확인됨"
+                        }
+                        locationSummaryLabel = "$stateText · 정확도 ±%.0fm".format(sample.accuracyMeters)
+                    }
+                    .onFailure { locationSummaryLabel = "위치 정보를 불러오지 못했어요" }
             }
             EmergencyGuardianScreen(
+                patientSummaryLabel = patientSummaryLabel,
+                locationSummaryLabel = locationSummaryLabel,
                 onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
                 onDispatch = {
                     val deviceId = targetDeviceId
