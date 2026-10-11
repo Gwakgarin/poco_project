@@ -55,6 +55,37 @@ class LocationStore(context: Context) {
         return sample to state
     }
 
+    /**
+     * 아직 서버에 못 보낸 외출/귀가 이벤트 목록.
+     * 외출 이벤트는 전환 순간 딱 한 번만 생기기 때문에, 그 순간 네트워크가 끊겨 있으면 영영 사라진다
+     * (최신 위치는 30초마다 다시 보내니까 알아서 복구되지만 이건 그렇지 않다).
+     * 그래서 전송 실패분을 여기 적어두고 다음 위치 갱신 때 다시 시도한다.
+     * 저장 형식: "HOME_TO_OUTSIDE|1699999999999" 를 ";" 로 이어붙인 문자열.
+     */
+    fun pendingOutingEvents(): List<Pair<String, Long>> {
+        val raw = preferences.getString(KEY_PENDING_OUTING_EVENTS, null) ?: return emptyList()
+        return raw.split(ENTRY_SEPARATOR)
+            .mapNotNull { entry ->
+                val parts = entry.split(FIELD_SEPARATOR)
+                val type = parts.getOrNull(0)?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+                val timestamp = parts.getOrNull(1)?.toLongOrNull() ?: return@mapNotNull null
+                type to timestamp
+            }
+    }
+
+    /** 재시도 대기열을 통째로 교체한다. 너무 오래된 것까지 무한정 쌓이지 않도록 최근 것 위주로 자른다. */
+    fun savePendingOutingEvents(events: List<Pair<String, Long>>) {
+        val serialized = events
+            .takeLast(MAX_PENDING_OUTING_EVENTS)
+            .joinToString(ENTRY_SEPARATOR) { (type, timestamp) -> "$type$FIELD_SEPARATOR$timestamp" }
+        preferences.edit().putString(KEY_PENDING_OUTING_EVENTS, serialized).apply()
+    }
+
+    /** 전송에 실패한 외출/귀가 이벤트를 재시도 대기열 끝에 추가한다. */
+    fun addPendingOutingEvent(transitionType: String, timestampEpochMs: Long) {
+        savePendingOutingEvents(pendingOutingEvents() + (transitionType to timestampEpochMs))
+    }
+
     /** 서버가 환자 기기를 구분할 수 있도록 앱 설치별 UUID를 생성하고 재사용한다.
      *  이 값은 devices.device_uuid 로 서버에 등록하는 용도로만 쓰고,
      *  실제 이벤트 API에는 backendDeviceId()가 반환하는 숫자 id를 써야 한다. */
@@ -117,6 +148,9 @@ class LocationStore(context: Context) {
             .remove(KEY_CURRENT_USER_EMAIL)
             .remove(KEY_CURRENT_USER_JOINED_AT)
             .remove(KEY_BACKEND_DEVICE_ID)
+            // 기기 등록이 풀리므로 재시도 대기열도 비운다 - 안 그러면 다음에 로그인한
+            // 다른 사용자의 기기 id로 이전 사용자의 외출 기록이 올라간다.
+            .remove(KEY_PENDING_OUTING_EVENTS)
             .apply()
     }
 
@@ -137,5 +171,9 @@ class LocationStore(context: Context) {
         const val KEY_CURRENT_USER_NAME = "current_user_name"
         const val KEY_CURRENT_USER_EMAIL = "current_user_email"
         const val KEY_CURRENT_USER_JOINED_AT = "current_user_joined_at"
+        const val KEY_PENDING_OUTING_EVENTS = "pending_outing_events"
+        const val ENTRY_SEPARATOR = ";"
+        const val FIELD_SEPARATOR = "|"
+        const val MAX_PENDING_OUTING_EVENTS = 50
     }
 }

@@ -39,6 +39,13 @@ class LocationTracker(
                     measuredAtEpochMs = location.time
                 )
                 val homeZone = store.getHomeZone()
+                // 판정 직전에 저장소에 적힌 상태로 맞춘다.
+                // 화면에서 "현재 위치를 집으로 저장"을 누르면 LocationStore에 HOME이 바로 적히는데,
+                // 서비스 안의 상태 머신은 그걸 모른 채 메모리에 들고 있던 UNKNOWN을 계속 쓴다.
+                // 그 상태로 바로 밖에 나가면 "UNKNOWN -> OUTSIDE"가 되어 외출 이벤트가 버려지므로,
+                // 여기서 한 번 동기화해 "HOME -> OUTSIDE"로 제대로 잡히게 한다.
+                val persistedState = store.getLatest()?.second ?: HomeState.UNKNOWN
+                if (persistedState != stateMachine.state) stateMachine.reset(persistedState)
                 // 집을 아직 설정하지 않았다면 상태 머신을 실행하지 않고 UNKNOWN으로 저장한다.
                 val stateResult = homeZone?.let { stateMachine.update(sample, it) }
                 val state = stateResult?.state ?: HomeState.UNKNOWN

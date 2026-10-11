@@ -78,6 +78,8 @@ class AudioMonitorService : Service() {
             onLocation = { sample, stateResult ->
                 val state = stateResult?.state ?: HomeState.UNKNOWN
                 locationUploadManager.upload(sample, state)
+                // 네트워크가 끊겼을 때 못 보낸 외출/귀가 이벤트가 있으면 여기서 같이 다시 보낸다.
+                locationUploadManager.flushPendingOutingEvents()
                 // HOME<->OUTSIDE 실제 전환일 때만 외출/귀가 이벤트 하나로 저장한다.
                 // previousState가 UNKNOWN이면(첫 판정, 홈존 재설정 직후 등) 진짜 외출/귀가가 아니므로 제외.
                 if (stateResult != null && stateResult.changed &&
