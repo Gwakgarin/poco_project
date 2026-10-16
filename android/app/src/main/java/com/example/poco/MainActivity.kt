@@ -110,6 +110,7 @@ private fun PocoRoot() {
     val initialLocation = remember { locationStore.getLatest() }
     var monitorError by remember { mutableStateOf<String?>(null) }
     var lastAudioSignalAt by remember { mutableStateOf<Long?>(null) }
+    var analyzingSince by remember { mutableStateOf<Long?>(null) }
     var currentDb by remember { mutableStateOf<Double?>(null) }
     var currentTime by remember { mutableStateOf(System.currentTimeMillis()) }
     var batteryPercent by remember { mutableStateOf(readBatteryPercent(context)) }
@@ -124,7 +125,13 @@ private fun PocoRoot() {
                 intent.getStringExtra(AudioMonitorService.EXTRA_ERROR)?.let {
                     monitorError = it
                 }
+                if (intent.hasExtra(AudioMonitorService.EXTRA_ANALYZING)) {
+                    analyzingSince = if (intent.getBooleanExtra(AudioMonitorService.EXTRA_ANALYZING, false)) {
+                        System.currentTimeMillis()
+                    } else null
+                }
                 if (intent.hasExtra(AudioMonitorService.EXTRA_DB)) {
+                    analyzingSince = null
                     currentDb = intent.getDoubleExtra(AudioMonitorService.EXTRA_DB, 0.0)
                     lastAudioSignalAt = System.currentTimeMillis()
                     monitorError = null
@@ -181,13 +188,23 @@ private fun PocoRoot() {
     val isDetecting = micOn && monitorError == null && audioSignalAge != null &&
         audioSignalAge <= AUDIO_SIGNAL_TIMEOUT_MS
 
+    // 큰 소리를 녹음·분류하는 동안(약 10초)은 마이크 신호를 안 보내므로 "끊김"이 아니라 "분석 중"으로 보여준다.
+    // 서비스가 중간에 죽어도 계속 분석 중으로 남지 않게 오래된 분석 상태는 무시한다.
+    val isAnalyzing = micOn && monitorError == null && analyzingSince?.let { currentTime - it <= ANALYZING_TIMEOUT_MS } == true
+
     PocoNavHost(
         homeUiState = UserHomeUiState(
-            isDetecting = isDetecting,
-            statusLabel = if (isDetecting) "실제 감지 중" else "감지 확인 필요",
+            isDetecting = isDetecting || isAnalyzing,
+            isAnalyzing = isAnalyzing,
+            statusLabel = when {
+                isAnalyzing -> "소리 분석 중"
+                isDetecting -> "실제 감지 중"
+                else -> "감지 확인 필요"
+            },
             detectionLabel = when {
                 monitorError != null -> "오디오 오류"
                 !micOn -> "마이크 권한 필요"
+                isAnalyzing -> "소리 분석 중"
                 lastAudioSignalAt == null -> "오디오 신호 대기 중"
                 audioSignalAge != null && audioSignalAge > AUDIO_SIGNAL_TIMEOUT_MS -> "오디오 신호 끊김"
                 else -> "실시간 소리 감지 중"
@@ -225,6 +242,7 @@ private fun PocoRoot() {
 }
 
 private const val AUDIO_SIGNAL_TIMEOUT_MS = 3_000L
+private const val ANALYZING_TIMEOUT_MS = 30_000L
 
 private fun readBatteryPercent(context: Context): Int {
     val batteryManager = context.getSystemService(Context.BATTERY_SERVICE) as BatteryManager

@@ -165,10 +165,10 @@ class AudioMonitorService : Service() {
                     continue
                 }
 
-                sendStatus("5초 소리 분류 중")
+                sendStatus("5초 소리 분류 중", analyzing = true)
                 processSegment(samples)
 
-                sendStatus("마이크 감시 중")
+                // 대기(쿨다운) 중에도 신호가 없으니 분석 상태를 유지하고, 다음 루프에서 감시 상태로 돌아간다.
                 Thread.sleep(TRIGGER_COOLDOWN_MS)
             } catch (t: InterruptedException) {
                 Thread.currentThread().interrupt()
@@ -233,7 +233,7 @@ class AudioMonitorService : Service() {
 
                 if (db >= DB_THRESHOLD) {
                     Log.d("POCO", "TRIGGER read=$read peak=$peak dB=$db")
-                    sendStatus("큰 소리 감지: 5초 녹음 중")
+                    sendStatus("큰 소리 감지: 5초 녹음 중", analyzing = true)
                     return collectFiveSecondSegment(recorder, readBuffer, read)
                 }
 
@@ -469,9 +469,10 @@ class AudioMonitorService : Service() {
         sendBroadcast(intent)
     }
 
-    private fun sendStatus(status: String) {
+    private fun sendStatus(status: String, analyzing: Boolean = false) {
         val intent = Intent(ACTION_RESULT).setPackage(packageName)
             .putExtra(EXTRA_MONITOR_STATUS, status)
+            .putExtra(EXTRA_ANALYZING, analyzing)
         sendBroadcast(intent)
         updateNotification(status, "POCO is listening in the background")
     }
@@ -573,6 +574,7 @@ class AudioMonitorService : Service() {
     companion object {
         const val ACTION_RESULT = "com.example.poco.AUDIO_RESULT"
         const val EXTRA_MONITOR_STATUS = "monitor_status"
+        const val EXTRA_ANALYZING = "analyzing"
         const val EXTRA_LABEL = "label"
         const val EXTRA_SCORE = "score"
         const val EXTRA_WAV_PATH = "wav_path"

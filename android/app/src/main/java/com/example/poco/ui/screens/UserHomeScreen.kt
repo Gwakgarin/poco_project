@@ -63,6 +63,7 @@ import java.util.Calendar
 
 data class UserHomeUiState(
     val isDetecting: Boolean,
+    val isAnalyzing: Boolean = false,
     val statusLabel: String,
     val detectionLabel: String,
     val soundLevelLabel: String,
@@ -104,6 +105,7 @@ fun UserHomeScreen(
                 StatusGlowCircle(
                     text = uiState.statusLabel,
                     isDetecting = uiState.isDetecting,
+                    isAnalyzing = uiState.isAnalyzing,
                     soundLevelLabel = uiState.soundLevelLabel
                 )
 
@@ -175,8 +177,12 @@ private fun GreetingHeader(userName: String, onSosClick: () -> Unit) {
 }
 
 @Composable
-private fun StatusGlowCircle(text: String, isDetecting: Boolean, soundLevelLabel: String) {
-    val caption = if (isDetecting) "정상적인 생활 소리가\n감지되고 있어요" else "마이크 상태를\n확인해주세요"
+private fun StatusGlowCircle(text: String, isDetecting: Boolean, isAnalyzing: Boolean, soundLevelLabel: String) {
+    val caption = when {
+        isAnalyzing -> "방금 들린 소리를\n분석하고 있어요"
+        isDetecting -> "정상적인 생활 소리가\n감지되고 있어요"
+        else -> "마이크 상태를\n확인해주세요"
+    }
 
     Box(modifier = Modifier.size(300.dp), contentAlignment = Alignment.Center) {
         if (isDetecting) {
