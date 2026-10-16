@@ -35,6 +35,7 @@ import com.example.poco.NoticeResponse
 import com.example.poco.DeviceRequest
 import com.example.poco.DeviceResponse
 import com.example.poco.EmergencyDispatchRequest
+import com.example.poco.EmergencyDispatchResponse
 import com.example.poco.LoginRequest
 import com.example.poco.NotificationSettingsRequest
 import com.example.poco.RedeemLinkRequest
@@ -179,6 +180,17 @@ private fun DangerAlertResponse.toDangerNotificationItem() = DangerNotificationI
     label = dangerReasonLabel(reason, soundLabel)
 )
 
+/** SOS 출동 요청도 푸시가 가므로 알림 센터에 같이 남긴다. */
+private fun EmergencyDispatchResponse.toDangerNotificationItem() = DangerNotificationItem(
+    time = requestedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
+    label = when (responseStatus) {
+        "DISPATCHED" -> "SOS 출동 중"
+        "ARRIVED" -> "SOS 출동 도착"
+        "CANCELLED" -> "SOS 요청 취소"
+        else -> "SOS 긴급 요청 접수"
+    }
+)
+
 /** /api/alerts에 실제로 생성/조회된 이상탐지 알림을 화면 모델로 바꾼다. */
 private fun AlertResponse.toAnomalyAlert() = AnomalyAlert(
     time = time.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
@@ -203,6 +215,18 @@ private fun SleepWakeEventResponse.toTimelineEntry() = TimelineEntry(
     label = if (eventType.equals("wake", ignoreCase = true)) "기상" else "취침",
     isRisk = false
 )
+
+/** 위험 알림·행동 세션·수면 이벤트를 실제 발생 시각(epoch) 기준 오름차순(오래된 것 → 최근)으로 합친다. */
+private fun buildTimeline(
+    alerts: List<DangerAlertResponse>,
+    sessions: List<BehaviorSessionResponse>,
+    sleepWakeEvents: List<SleepWakeEventResponse>
+): List<TimelineEntry> =
+    (alerts.map { (it.detectedAt.fromServerDateTime() ?: 0L) to it.toTimelineEntry() } +
+        sessions.map { (it.startTime.fromServerDateTime() ?: 0L) to it.toTimelineEntry() } +
+        sleepWakeEvents.map { (it.timestamp.fromServerDateTime() ?: 0L) to it.toTimelineEntry() })
+        .sortedBy { it.first }
+        .map { it.second }
 
 /**
  * sleep 확정 이벤트 -> 바로 다음 wake 확정 이벤트로 이어지는 구간을 짝지은 뒤,
@@ -780,9 +804,15 @@ fun PocoNavHost(
                         if (start != null && end != null && end > start) end - start else 0L
                     }
                     .let { totalMs -> "${totalMs / 60_000L}분" } // 활동이 없으면 "-"가 아니라 "0분"으로 (식사 횟수 "0회"와 같은 표현 방식)
-                outingLabel = if (outingEvents.any {
+                // 가장 최근 이벤트가 '집→밖'이면 지금 외출 중이다(어제 밤에 나가서 아직 안 들어온 경우도 포함하려고 날짜로 거르지 않는다).
+                val latestOutingEvent = outingEvents.maxByOrNull { it.timestamp.fromServerDateTime() ?: 0L }
+                outingLabel = when {
+                    latestOutingEvent?.transitionType.equals("HOME_TO_OUTSIDE", ignoreCase = true) -> "외출 중"
+                    outingEvents.any {
                         it.transitionType.equals("HOME_TO_OUTSIDE", ignoreCase = true) && it.timestamp.fromServerDateTime().isToday()
-                    }) "다녀옴" else "외출 없음"
+                    } -> "다녀옴"
+                    else -> "외출 없음"
+                }
 
                 // "오늘의 활동 요약"·"오늘의 일간 타임라인"이라 이름 붙은 만큼, 다른 지표들처럼 오늘 것만 써야 한다.
                 // 단, 수면은 취침(전날 밤)·기상(당일 아침)의 날짜가 다르므로 sleepWakeEvents는 여기서
@@ -799,8 +829,7 @@ fun PocoNavHost(
 
                 latestAlert = alerts.maxByOrNull { it.detectedAt.fromServerDateTime() ?: 0L }?.toTimelineEntry()
                 // 기상은 위에서 이미 wakeTimelineEntry로 별도 표시하므로, 여기 목록에 또 넣으면 중복 표시된다.
-                recentTimeline = (todayAlerts.map { it.toTimelineEntry() } +
-                    todaySessions.map { it.toTimelineEntry() }).take(5)
+                recentTimeline = buildTimeline(todayAlerts, todaySessions, emptyList()).takeLast(5)
             }
             GuardianHomeScreen(
                 selectedTab = GuardianTab.HOME,
@@ -834,11 +863,7 @@ fun PocoNavHost(
                 val todaySessions = sessions.filter { it.startTime.fromServerDateTime().isToday() }
                 val todayAlerts = alerts.filter { it.detectedAt.fromServerDateTime().isToday() }
                 val todaySleepWakeEvents = sleepWakeEvents.filter { it.timestamp.fromServerDateTime().isToday() }
-                // 참고: danger-alerts 는 실제 발생 시각(epoch)이 있지만 behavior-sessions 는 세션 내 상대 초(startSec)만 있어서
-                // 두 시간 기준이 달라 정확히 하나의 시간순으로 병합할 수는 없음 -> 위험 알림을 먼저, 그 아래 행동 세션을 보여줌.
-                timeline = todayAlerts.map { it.toTimelineEntry() } +
-                    todaySessions.map { it.toTimelineEntry() } +
-                    todaySleepWakeEvents.map { it.toTimelineEntry() }
+                timeline = buildTimeline(todayAlerts, todaySessions, todaySleepWakeEvents)
                 // 수면 시간은 취침(전날 밤)·기상(당일 아침) 날짜가 달라서 today로 미리 거른 리스트가 아니라
                 // 원본 sleepWakeEvents를 넘겨야 한다(그 안에서 기상일 기준으로 페어를 골라낸다).
                 sleepDurationLabel = sleepWakeEvents.totalSleepDurationLabel()
@@ -905,9 +930,13 @@ fun PocoNavHost(
                 val existingAnomalyAlerts = runCatching { ServerApiClient.api.getAlerts(deviceId) }.getOrDefault(emptyList())
 
                 // "위험 알림" 섹션: 비명·반복 경적을 최신순으로 보여준다. 이상탐지(아래 섹션)와는 별도.
-                dangerAlerts = dangerAlertsList
-                    .sortedByDescending { it.detectedAt.fromServerDateTime() ?: 0L }
-                    .map { it.toDangerNotificationItem() }
+                val emergencyHistory = runCatching { ServerApiClient.api.getEmergencyHistory(deviceId) }.getOrDefault(emptyList())
+                dangerAlerts = (
+                    dangerAlertsList.map { (it.detectedAt.fromServerDateTime() ?: 0L) to it.toDangerNotificationItem() } +
+                        emergencyHistory.map { (it.requestedAt.fromServerDateTime() ?: 0L) to it.toDangerNotificationItem() }
+                    )
+                    .sortedByDescending { it.first }
+                    .map { it.second }
 
                 // 이상탐지: 이미 만들어둔 장기추세 분석 엔진(TrendAggregator)의 판정을 그대로 재사용해서
                 // 기준(20% 이상 변화 + 최소 유효기록일)을 통과하면 이상탐지 알림을 생성한다.
