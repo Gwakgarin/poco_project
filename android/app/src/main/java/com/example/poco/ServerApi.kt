@@ -338,8 +338,9 @@ interface PocoApi {
     @GET("/api/devices")
     suspend fun getDeviceByUserId(@Query("userId") userId: Long): DeviceResponse
 
-    @PATCH("/api/devices/mic-sensitivity")
-    suspend fun updateMicSensitivity(@Query("userId") userId: Long, @Query("value") value: Float): DeviceResponse
+    // id가 들어 있으면 서버가 새로 만들지 않고 기존 기기를 덮어쓴다(= 갱신). updateDevice()에서만 쓴다.
+    @POST("/api/devices")
+    suspend fun saveDevice(@Body device: DeviceResponse): DeviceResponse
 
     // ---- 보호자 연동 ----
     @POST("/api/link/code")
@@ -461,6 +462,16 @@ object ServerApiClient {
 
     val api: PocoApi = retrofit.create(PocoApi::class.java)
 }
+
+/**
+ * 서버에 기기 일부 필드만 바꾸는 API가 없어서, 현재 기기 정보를 읽어 한 필드만 바꾼 뒤
+ * POST /api/devices(id 포함 = 덮어쓰기)로 다시 저장한다. 배터리·마이크 감도 갱신에 쓴다.
+ */
+suspend fun updateDevice(userId: Long, change: (DeviceResponse) -> DeviceResponse): Result<DeviceResponse> =
+    runCatching {
+        val current = ServerApiClient.api.getDeviceByUserId(userId)
+        ServerApiClient.api.saveDevice(change(current))
+    }
 
 // =========================================================
 // epoch ms(Long, 앱 내부에서 쓰던 방식) <-> 서버 datetime 문자열 변환 유틸

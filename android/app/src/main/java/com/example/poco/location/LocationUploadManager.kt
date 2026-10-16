@@ -4,7 +4,9 @@ import android.util.Log
 import com.example.poco.LatestLocationRequest
 import com.example.poco.OutingEventRequest
 import com.example.poco.ServerApiClient
+import com.example.poco.updateDevice
 import com.example.poco.toServerDateTime
+import kotlinx.coroutines.runBlocking
 import java.io.Closeable
 import java.util.concurrent.Executors
 
@@ -21,6 +23,21 @@ class LocationUploadManager(
     private val onResult: (String) -> Unit = {}
 ) : Closeable {
     private val executor = Executors.newSingleThreadExecutor()
+    @Volatile private var lastUploadedBattery: Int? = null
+
+    /** 배터리 잔량이 지난번에 올린 값과 달라졌을 때만 서버 기기 정보의 batteryPercent를 갱신한다. */
+    fun uploadBatteryIfChanged(percent: Int) {
+        if (percent !in 0..100 || percent == lastUploadedBattery) return
+        executor.execute {
+            val userId = locationStore.currentUserId() ?: return@execute
+            val result = runBlocking { updateDevice(userId) { it.copy(batteryPercent = percent) } }
+            if (result.isSuccess) {
+                lastUploadedBattery = percent
+            } else {
+                Log.w("POCO", "Battery upload failed", result.exceptionOrNull())
+            }
+        }
+    }
 
     /** 위치, 정확도, HOME 상태와 측정 시각을 최신 위치 API로 전송한다. */
     fun upload(sample: LocationSample, state: HomeState) {

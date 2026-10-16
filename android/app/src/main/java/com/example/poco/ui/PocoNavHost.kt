@@ -46,6 +46,7 @@ import com.example.poco.SoundEventResponse
 import com.example.poco.UserLinkResponse
 import com.example.poco.fromServerDateTime
 import com.example.poco.toServerDateTime
+import com.example.poco.updateDevice
 import com.example.poco.location.HomeState
 import com.example.poco.location.LocationSample
 import com.example.poco.location.LocationStore
@@ -1184,7 +1185,7 @@ private fun MicSensitivityRoute(onBack: () -> Unit) {
         onSensitivityChange = { value ->
             val id = userId ?: return@MicSensitivityScreen
             scope.launch {
-                val result = runCatching { ServerApiClient.api.updateMicSensitivity(id, value) }
+                val result = updateDevice(id) { it.copy(micSensitivity = value) }
                 errorMessage = if (result.isFailure) "감도 저장에 실패했어요. 다시 시도해주세요." else null
             }
         },

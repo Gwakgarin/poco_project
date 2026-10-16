@@ -4,12 +4,16 @@ import android.Manifest
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.Service
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
+import android.os.BatteryManager
 import android.os.Build
 import android.os.IBinder
 import android.util.Log
@@ -40,6 +44,15 @@ class AudioMonitorService : Service() {
     private lateinit var locationStore: LocationStore
     private lateinit var locationTracker: LocationTracker
     private lateinit var locationUploadManager: LocationUploadManager
+    private val batteryReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: return
+            val scale = intent.getIntExtra(BatteryManager.EXTRA_SCALE, 100)
+            if (level >= 0 && scale > 0) {
+                locationUploadManager.uploadBatteryIfChanged(level * 100 / scale)
+            }
+        }
+    }
     private val dangerPolicy = DangerPolicy()
 
     // 세션 상태머신 (세탁/청소/설거지/식사/인지). 설거지는 식사 세션을 참조해서 종료 트리거를 걸 수 있다.
@@ -72,6 +85,8 @@ class AudioMonitorService : Service() {
         locationUploadManager = LocationUploadManager(locationStore) { status ->
             sendLocationStatus(status)
         }
+        // 배터리 잔량이 바뀔 때마다(등록 직후엔 현재 값 1회) 서버에 반영한다. 위치 콜백은 가만히 있으면 안 올 수 있어서 따로 받는다.
+        registerReceiver(batteryReceiver, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
         locationTracker = LocationTracker(
             context = this,
             store = locationStore,
@@ -132,6 +147,7 @@ class AudioMonitorService : Service() {
     }
 
     override fun onDestroy() {
+        runCatching { unregisterReceiver(batteryReceiver) }
         running = false
         monitorThread?.interrupt()
         locationTracker.stop()
