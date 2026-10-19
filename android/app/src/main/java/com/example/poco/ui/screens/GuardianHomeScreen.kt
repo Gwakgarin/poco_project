@@ -65,6 +65,7 @@ fun GuardianHomeScreen(
     selectedTab: GuardianTab,
     onTabSelected: (GuardianTab) -> Unit,
     onOpenNotifications: () -> Unit,
+    onCheckLocation: () -> Unit = {},
     modifier: Modifier = Modifier,
     monitoredUserLabel: String = "연동된 사용자",
     mealCountLabel: String = "-",
@@ -145,7 +146,11 @@ fun GuardianHomeScreen(
                                 horizontalArrangement = Arrangement.spacedBy(12.dp)
                             ) {
                                 StatCard(modifier = Modifier.weight(1f), label = "마이크", value = micLabel)
-                                StatCard(modifier = Modifier.weight(1f), label = "GPS", value = gpsLabel)
+                                StatCard(
+                                    modifier = Modifier.weight(1f).clickable(onClick = onCheckLocation),
+                                    label = "GPS",
+                                    value = gpsLabel
+                                )
                                 StatCard(modifier = Modifier.weight(1f), label = "배터리", value = batteryLabel)
                             }
                         }

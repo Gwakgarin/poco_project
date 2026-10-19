@@ -847,7 +847,6 @@ fun PocoNavHost(
                 val sessions = runCatching { ServerApiClient.api.getBehaviorSessions(deviceId) }.getOrDefault(emptyList())
                 val alerts = runCatching { ServerApiClient.api.getDangerAlerts(deviceId) }.getOrDefault(emptyList())
                 val sleepWakeEvents = runCatching { ServerApiClient.api.getSleepWakeEvents(deviceId) }.getOrDefault(emptyList())
-                val outingEvents = runCatching { ServerApiClient.api.getOutingEvents(deviceId) }.getOrDefault(emptyList())
 
                 val todaySessions = sessions.filter { it.startTime.fromServerDateTime().isToday() }
                 mealCountLabel = "${todaySessions.count { it.behavior == "meal" }}회"
@@ -859,14 +858,14 @@ fun PocoNavHost(
                         if (start != null && end != null && end > start) end - start else 0L
                     }
                     .let { totalMs -> "${totalMs / 60_000L}분" } // 활동이 없으면 "-"가 아니라 "0분"으로 (식사 횟수 "0회"와 같은 표현 방식)
-                // 가장 최근 이벤트가 '집→밖'이면 지금 외출 중이다(어제 밤에 나가서 아직 안 들어온 경우도 포함하려고 날짜로 거르지 않는다).
-                val latestOutingEvent = outingEvents.maxByOrNull { it.timestamp.fromServerDateTime() ?: 0L }
-                outingLabel = when {
-                    latestOutingEvent?.transitionType.equals("HOME_TO_OUTSIDE", ignoreCase = true) -> "외출 중"
-                    outingEvents.any {
-                        it.transitionType.equals("HOME_TO_OUTSIDE", ignoreCase = true) && it.timestamp.fromServerDateTime().isToday()
-                    } -> "다녀옴"
-                    else -> "외출 없음"
+                // "다녀옴"처럼 오늘의 외출 이력으로 판단하면 방금 귀가해도 과거형 문구가 남아 헷갈린다.
+                // 대신 최신 location sample의 실시간 HomeState로 "지금" 상태만 보여준다.
+                outingLabel = runCatching { PatientLocationRepository().getLatest(deviceId) }.getOrNull()?.second.let { state ->
+                    when (state) {
+                        HomeState.HOME -> "재실"
+                        HomeState.OUTSIDE -> "외출 중"
+                        else -> "확인 중"
+                    }
                 }
 
                 // "오늘의 활동 요약"·"오늘의 일간 타임라인"이라 이름 붙은 만큼, 다른 지표들처럼 오늘 것만 써야 한다.
@@ -890,6 +889,7 @@ fun PocoNavHost(
                 selectedTab = GuardianTab.HOME,
                 onTabSelected = { tab -> navController.navigateGuardianTab(tab) },
                 onOpenNotifications = { navController.navigate(PocoRoutes.GUARDIAN_ALERTS) },
+                onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
                 monitoredUserLabel = monitoredUserLabel,
                 mealCountLabel = mealCountLabel,
                 outingLabel = outingLabel,
