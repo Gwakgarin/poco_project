@@ -25,6 +25,6 @@ class PocoMessagingService : FirebaseMessagingService() {
         super.onMessageReceived(message)
         val title = message.notification?.title ?: message.data["title"]
         val body = message.notification?.body ?: message.data["body"]
-        PushNotifications.show(applicationContext, title, body)
+        PushNotifications.show(applicationContext, title, body, message.data["type"])
     }
 }

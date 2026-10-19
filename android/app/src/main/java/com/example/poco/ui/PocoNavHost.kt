@@ -26,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.example.poco.BehaviorSessionResponse
 import com.example.poco.AlertRequest
@@ -313,6 +314,29 @@ object PocoRoutes {
     const val GUARDIAN_LINK_NEW_USER = "guardian_link_new_user"
 }
 
+/** 푸시를 눌렀을 때 긴급 화면으로 넘어갈 수 있는 보호자 모드 화면들. */
+private val GUARDIAN_MODE_ROUTES = setOf(
+    PocoRoutes.GUARDIAN_HOME,
+    PocoRoutes.GUARDIAN_TIMELINE,
+    PocoRoutes.GUARDIAN_TREND,
+    PocoRoutes.GUARDIAN_ALERTS,
+    PocoRoutes.GUARDIAN_SETTINGS,
+    PocoRoutes.GUARDIAN_USER_LINK_INFO,
+    PocoRoutes.GUARDIAN_NOTIFICATION_SETTINGS,
+    PocoRoutes.GUARDIAN_LINK_NEW_USER
+)
+
+/** 위험 감지 확인 화면을 자동으로 띄워도 되는 사용자 모드 화면들. */
+private val USER_MODE_ROUTES = setOf(
+    PocoRoutes.USER_HOME,
+    PocoRoutes.USER_ACTIVITY,
+    PocoRoutes.USER_SETTINGS,
+    PocoRoutes.MIC_SENSITIVITY,
+    PocoRoutes.NOTIFICATION_SETTINGS,
+    PocoRoutes.ACCOUNT_INFO,
+    PocoRoutes.GUARDIAN_LINK_MANAGEMENT
+)
+
 /** 보호자 위치 화면이 서버에서 최신 좌표를 다시 읽어오는 주기. 환자 기기의 업로드 주기(LocationTracker 30초)에 맞춘다. */
 private const val LOCATION_REFRESH_INTERVAL_MS = 30_000L
 
@@ -421,9 +445,39 @@ private val slideOutToRight = slideOutHorizontally(animationSpec = tween(280)) {
 fun PocoNavHost(
     homeUiState: UserHomeUiState,
     onSaveCurrentLocationAsHome: () -> Unit = {},
+    dangerPromptToken: Int = 0,
+    guardianEmergencyToken: Int = 0,
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
+    // 비명·반복 경적이 위험으로 판정되면(토큰 증가) 사용자 모드 화면에서 확인 화면을 띄운다.
+    // 이미 긴급 화면이거나 보호자 모드·로그인 화면이면 끼어들지 않는다.
+    LaunchedEffect(dangerPromptToken) {
+        if (dangerPromptToken == 0) return@LaunchedEffect
+        val route = navController.currentDestination?.route
+        if (route in USER_MODE_ROUTES) {
+            navController.navigate(PocoRoutes.EMERGENCY_USER) { launchSingleTop = true }
+        }
+    }
+
+    // 위험 감지·SOS 푸시를 눌러 들어오면 보호자 모드 화면에서 긴급 화면(위치 확인·전화·신고)을 연다.
+    // 앱이 꺼져 있다가 푸시로 시작하면 로그인 뒤 보호자 화면에 도착했을 때 연다.
+    var pendingGuardianEmergency by remember { mutableStateOf(false) }
+    LaunchedEffect(guardianEmergencyToken) {
+        if (guardianEmergencyToken > 0) pendingGuardianEmergency = true
+    }
+    val currentRoute = navController.currentBackStackEntryAsState().value?.destination?.route
+    LaunchedEffect(pendingGuardianEmergency, currentRoute) {
+        if (!pendingGuardianEmergency) return@LaunchedEffect
+        when (currentRoute) {
+            in GUARDIAN_MODE_ROUTES -> {
+                pendingGuardianEmergency = false
+                navController.navigate(PocoRoutes.EMERGENCY_GUARDIAN) { launchSingleTop = true }
+            }
+            // 사용자 모드이거나 이미 긴급 화면이면 이 신호는 쓰지 않는다.
+            in USER_MODE_ROUTES, PocoRoutes.EMERGENCY_GUARDIAN -> pendingGuardianEmergency = false
+        }
+    }
     var pendingSignUp by remember { mutableStateOf<PendingSignUp?>(null) }
     var pendingLinkCode by remember { mutableStateOf<String?>(null) }
 

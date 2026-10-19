@@ -392,6 +392,8 @@ class AudioMonitorService : Service() {
         val state = latest?.second ?: HomeState.UNKNOWN
         val detectedAt = System.currentTimeMillis()
         val decision = dangerPolicy.evaluate(label, state, detectedAt) ?: return null
+        // 서버 저장 성공 여부와 상관없이 사용자 화면에 확인 화면을 띄우도록 먼저 알린다.
+        sendDangerPrompt(decision.reason)
         val deviceId = locationStore.backendDeviceId()
             ?: return "Danger alert save skipped: device not registered yet"
         val request = DangerAlertRequest(
@@ -467,6 +469,13 @@ class AudioMonitorService : Service() {
             .putExtra(EXTRA_WAV_PATH, wavFile.absolutePath)
             .putExtra(EXTRA_SERVER_STATUS, serverStatus)
         sendBroadcast(intent)
+    }
+
+    private fun sendDangerPrompt(reason: String) {
+        sendBroadcast(
+            Intent(ACTION_RESULT).setPackage(packageName)
+                .putExtra(EXTRA_DANGER_REASON, reason)
+        )
     }
 
     private fun sendStatus(status: String, analyzing: Boolean = false) {
@@ -575,6 +584,7 @@ class AudioMonitorService : Service() {
         const val ACTION_RESULT = "com.example.poco.AUDIO_RESULT"
         const val EXTRA_MONITOR_STATUS = "monitor_status"
         const val EXTRA_ANALYZING = "analyzing"
+        const val EXTRA_DANGER_REASON = "danger_reason"
         const val EXTRA_LABEL = "label"
         const val EXTRA_SCORE = "score"
         const val EXTRA_WAV_PATH = "wav_path"

@@ -38,6 +38,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 class MainActivity : ComponentActivity() {
+    /** 위험 감지·SOS 푸시를 누르고 들어올 때마다 올라가며, 보호자 모드에서 긴급 화면을 여는 신호로 쓴다. */
+    private var guardianEmergencyToken by mutableStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
@@ -74,9 +77,28 @@ class MainActivity : ComponentActivity() {
                 .onFailure { android.util.Log.e("PocoFCM", "토큰 등록 실패", it) }
         }
 
+        handlePushIntent(intent)
         setContent {
-            POCOTheme { PocoRoot() }
+            POCOTheme { PocoRoot(guardianEmergencyToken = guardianEmergencyToken) }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        handlePushIntent(intent)
+    }
+
+    /** 위험 감지·SOS 푸시를 눌러 들어왔으면 보호자 긴급 화면을 열도록 토큰을 올린다. */
+    private fun handlePushIntent(intent: Intent?) {
+        val type = intent?.getStringExtra(PushNotifications.EXTRA_PUSH_TYPE)
+            ?: intent?.getStringExtra(PushNotifications.EXTRA_FCM_TYPE)
+        if (type in PushNotifications.EMERGENCY_PUSH_TYPES) {
+            guardianEmergencyToken += 1
+        }
+        // 화면 회전 등으로 다시 처리되지 않게 한 번 쓴 extra는 지운다.
+        intent?.removeExtra(PushNotifications.EXTRA_PUSH_TYPE)
+        intent?.removeExtra(PushNotifications.EXTRA_FCM_TYPE)
     }
 
     override fun onRequestPermissionsResult(
@@ -104,7 +126,7 @@ class MainActivity : ComponentActivity() {
 private val lastCheckedFormat = SimpleDateFormat("a h:mm", Locale.KOREAN)
 
 @Composable
-private fun PocoRoot() {
+private fun PocoRoot(guardianEmergencyToken: Int = 0) {
     val context = LocalContext.current
     val locationStore = remember(context) { LocationStore(context) }
     val initialLocation = remember { locationStore.getLatest() }
@@ -117,6 +139,8 @@ private fun PocoRoot() {
     var latestLocation by remember { mutableStateOf(initialLocation?.first) }
     var homeState by remember { mutableStateOf(initialLocation?.second ?: HomeState.UNKNOWN) }
     var homeDistanceMeters by remember { mutableStateOf<Double?>(null) }
+    // 비명·반복 경적 같은 위험 판정이 날 때마다 올라가며, 값이 바뀌면 사용자 확인 화면을 띄운다.
+    var dangerPromptToken by remember { mutableStateOf(0) }
 
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
@@ -124,6 +148,9 @@ private fun PocoRoot() {
                 if (intent?.action != AudioMonitorService.ACTION_RESULT) return
                 intent.getStringExtra(AudioMonitorService.EXTRA_ERROR)?.let {
                     monitorError = it
+                }
+                if (intent.hasExtra(AudioMonitorService.EXTRA_DANGER_REASON)) {
+                    dangerPromptToken += 1
                 }
                 if (intent.hasExtra(AudioMonitorService.EXTRA_ANALYZING)) {
                     analyzingSince = if (intent.getBooleanExtra(AudioMonitorService.EXTRA_ANALYZING, false)) {
@@ -193,6 +220,8 @@ private fun PocoRoot() {
     val isAnalyzing = micOn && monitorError == null && analyzingSince?.let { currentTime - it <= ANALYZING_TIMEOUT_MS } == true
 
     PocoNavHost(
+        dangerPromptToken = dangerPromptToken,
+        guardianEmergencyToken = guardianEmergencyToken,
         homeUiState = UserHomeUiState(
             isDetecting = isDetecting || isAnalyzing,
             isAnalyzing = isAnalyzing,
