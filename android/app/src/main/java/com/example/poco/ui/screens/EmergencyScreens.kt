@@ -238,7 +238,7 @@ fun EmergencyGuardianScreen(
     if (showDispatchConfirm) {
         AlertDialog(
             onDismissRequest = { showDispatchConfirm = false },
-            title = { Text(text = "119 신고를 진행할까요?", fontWeight = FontWeight.Bold) },
+            title = { Text(text = "긴급 상황을 알릴까요?", fontWeight = FontWeight.Bold) },
             text = { Text(text = "신고와 함께 마지막 위치 정보가 함께 전달돼요") },
             confirmButton = {
                 TextButton(onClick = {
