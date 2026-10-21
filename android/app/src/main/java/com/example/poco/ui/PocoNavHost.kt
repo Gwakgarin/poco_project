@@ -182,14 +182,14 @@ private fun DangerAlertResponse.toDangerNotificationItem() = DangerNotificationI
     label = dangerReasonLabel(reason, soundLabel)
 )
 
-/** SOS 출동 요청도 푸시가 가므로 알림 센터에 같이 남긴다. */
+/** SOS 긴급 요청도 푸시가 가므로 알림 센터에 같이 남긴다. */
 private fun EmergencyDispatchResponse.toDangerNotificationItem() = DangerNotificationItem(
     time = requestedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
     label = when (responseStatus) {
         "DISPATCHED" -> "SOS 대응 중"
         "ARRIVED" -> "SOS 대응 완료"
         "CANCELLED" -> "SOS 요청 취소"
-        else -> "SOS 긴급 요청 접수"
+        else -> "SOS 긴급 요청"
     }
 )
 
