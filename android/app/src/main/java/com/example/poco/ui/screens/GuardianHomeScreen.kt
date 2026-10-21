@@ -36,6 +36,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -125,13 +126,14 @@ fun GuardianHomeScreen(
                             Spacer(modifier = Modifier.height(12.dp))
                             PocoCard(modifier = Modifier.fillMaxWidth()) {
                                 Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        ActivitySummaryCell(homeActivitySummary[0])
-                                        ActivitySummaryCell(homeActivitySummary[1])
+                                    // 두 칸을 같은 너비로 나눠 값 길이와 상관없이 왼쪽 시작 위치가 늘 같게 한다.
+                                    Row(modifier = Modifier.fillMaxWidth()) {
+                                        ActivitySummaryCell(homeActivitySummary[0], modifier = Modifier.weight(1f))
+                                        ActivitySummaryCell(homeActivitySummary[1], modifier = Modifier.weight(1f))
                                     }
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        ActivitySummaryCell(homeActivitySummary[2])
-                                        ActivitySummaryCell(homeActivitySummary[3])
+                                    Row(modifier = Modifier.fillMaxWidth()) {
+                                        ActivitySummaryCell(homeActivitySummary[2], modifier = Modifier.weight(1f))
+                                        ActivitySummaryCell(homeActivitySummary[3], modifier = Modifier.weight(1f))
                                     }
                                 }
                             }
@@ -182,8 +184,8 @@ private fun SectionLabel(text: String) {
 }
 
 @Composable
-private fun ActivitySummaryCell(stat: ActivitySummaryStat) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun ActivitySummaryCell(stat: ActivitySummaryStat, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -194,9 +196,16 @@ private fun ActivitySummaryCell(stat: ActivitySummaryStat) {
             Icon(imageVector = stat.icon, contentDescription = null, tint = stat.valueColor, modifier = Modifier.size(18.dp))
         }
         Spacer(modifier = Modifier.width(10.dp))
-        Column {
-            Text(text = stat.label, color = PocoTextMuted, fontSize = 12.sp)
-            Text(text = stat.value, color = stat.valueColor, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = stat.label, color = PocoTextMuted, fontSize = 12.sp, maxLines = 1)
+            Text(
+                text = stat.value,
+                color = stat.valueColor,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }
