@@ -209,7 +209,7 @@ fun EmergencyGuardianScreen(
                     Text(text = dispatchErrorMessage, color = PocoRed, fontSize = 13.sp)
                 }
                 DangerButton(
-                    text = if (isDispatching) "신고 접수 중..." else "출동하기",
+                    text = if (isDispatching) "알리는 중..." else "긴급 상황 알리기",
                     onClick = { showDispatchConfirm = true },
                     enabled = !isDispatching
                 )
@@ -239,13 +239,13 @@ fun EmergencyGuardianScreen(
         AlertDialog(
             onDismissRequest = { showDispatchConfirm = false },
             title = { Text(text = "긴급 상황을 알릴까요?", fontWeight = FontWeight.Bold) },
-            text = { Text(text = "신고와 함께 마지막 위치 정보가 함께 전달돼요") },
+            text = { Text(text = "마지막 위치와 함께 보호자에게 알림이 전달돼요") },
             confirmButton = {
                 TextButton(onClick = {
                     showDispatchConfirm = false
                     onDispatch()
                 }) {
-                    Text(text = "신고하기", color = PocoRed, fontWeight = FontWeight.Bold)
+                    Text(text = "알리기", color = PocoRed, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -392,7 +392,7 @@ private fun MapGridBackground(modifier: Modifier = Modifier) {
     }
 }
 
-/** 보호자 모드 — "출동하기" 확인 후 신고 접수 결과를 보여주는 화면. */
+/** "긴급 상황 알리기" 확인 후 알림 전달 결과를 보여주는 화면. */
 @Composable
 fun EmergencyDispatchedScreen(
     onDone: () -> Unit,
@@ -424,7 +424,7 @@ fun EmergencyDispatchedScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
             Text(
-                text = "신고가 접수되었습니다",
+                text = "긴급 상황을 알렸어요",
                 color = PocoTextPrimary,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.Bold,
@@ -432,7 +432,7 @@ fun EmergencyDispatchedScreen(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "마지막 위치와 상황 정보가\n119에 함께 전달되었어요",
+                text = "마지막 위치와 함께\n보호자에게 알림이 전달되었어요",
                 color = PocoTextMuted,
                 fontSize = 14.sp,
                 textAlign = TextAlign.Center

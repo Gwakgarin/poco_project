@@ -186,8 +186,8 @@ private fun DangerAlertResponse.toDangerNotificationItem() = DangerNotificationI
 private fun EmergencyDispatchResponse.toDangerNotificationItem() = DangerNotificationItem(
     time = requestedAt.fromServerDateTime()?.let { timeFormatter.format(it) } ?: "-",
     label = when (responseStatus) {
-        "DISPATCHED" -> "SOS 출동 중"
-        "ARRIVED" -> "SOS 출동 도착"
+        "DISPATCHED" -> "SOS 대응 중"
+        "ARRIVED" -> "SOS 대응 완료"
         "CANCELLED" -> "SOS 요청 취소"
         else -> "SOS 긴급 요청 접수"
     }
@@ -460,7 +460,7 @@ fun PocoNavHost(
         }
     }
 
-    // 위험 감지·SOS 푸시를 눌러 들어오면 보호자 모드 화면에서 긴급 화면(위치 확인·전화·신고)을 연다.
+    // 위험 감지·SOS 푸시를 눌러 들어오면 보호자 모드 화면에서 긴급 화면(위치 확인·전화·알리기)을 연다.
     // 앱이 꺼져 있다가 푸시로 시작하면 로그인 뒤 보호자 화면에 도착했을 때 연다.
     var pendingGuardianEmergency by remember { mutableStateOf(false) }
     LaunchedEffect(guardianEmergencyToken) {
@@ -755,7 +755,11 @@ fun PocoNavHost(
         composable(PocoRoutes.EMERGENCY_USER) {
             EmergencyUserScreen(
                 onSafe = { navController.popBackStack() },
-                onSos = { navController.navigate(PocoRoutes.EMERGENCY_GUARDIAN) }
+                onSos = {
+                    navController.navigate(PocoRoutes.EMERGENCY_GUARDIAN) {
+                        popUpTo(PocoRoutes.EMERGENCY_USER) { inclusive = true }
+                    }
+                }
             )
         }
         composable(PocoRoutes.EMERGENCY_LOCATION) {
@@ -816,8 +820,14 @@ fun PocoNavHost(
             )
         }
         composable(PocoRoutes.EMERGENCY_DISPATCHED) {
+            val context = LocalContext.current
+            val locationStore = remember(context) { LocationStore(context) }
             EmergencyDispatchedScreen(
-                onDone = { navController.navigateTopLevel(PocoRoutes.GUARDIAN_HOME, PocoRoutes.EMERGENCY_GUARDIAN) }
+                // 사용자 모드에서 SOS를 보낸 경우엔 사용자 홈으로, 보호자는 보호자 홈으로 돌아간다.
+                onDone = {
+                    val home = if (locationStore.currentUserRole() == 0) PocoRoutes.USER_HOME else PocoRoutes.GUARDIAN_HOME
+                    navController.navigateTopLevel(home, PocoRoutes.EMERGENCY_DISPATCHED)
+                }
             )
         }
 
@@ -1182,7 +1192,12 @@ fun PocoNavHost(
             EmergencyGuardianScreen(
                 patientSummaryLabel = patientSummaryLabel,
                 locationSummaryLabel = locationSummaryLabel,
-                onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
+                // 위치를 본 뒤 뒤로가면 긴급 화면을 거치지 않고 바로 홈으로 가도록 긴급 화면을 대체한다.
+                onCheckLocation = {
+                    navController.navigate(PocoRoutes.EMERGENCY_LOCATION) {
+                        popUpTo(PocoRoutes.EMERGENCY_GUARDIAN) { inclusive = true }
+                    }
+                },
                 onDispatch = {
                     val deviceId = targetDeviceId
                     val dispatchedBy = locationStore.currentUserId()
@@ -1198,9 +1213,11 @@ fun PocoNavHost(
                         }.getOrNull()
                         isDispatching = false
                         if (result?.success == true) {
-                            navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED)
+                            navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED) {
+                                popUpTo(PocoRoutes.EMERGENCY_GUARDIAN) { inclusive = true }
+                            }
                         } else {
-                            dispatchErrorMessage = result?.message ?: "신고 요청에 실패했어요. 다시 시도해주세요."
+                            dispatchErrorMessage = result?.message ?: "요청에 실패했어요. 다시 시도해주세요."
                         }
                     }
                 },
