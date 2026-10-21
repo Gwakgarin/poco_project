@@ -22,21 +22,6 @@
   집에 있는 스마트폰 한 대가 <b>소리와 위치</b>만으로 일상을 지켜보고 보호자에게 전합니다.
 </p>
 
-<table align="center">
-  <tr>
-    <td align="center" width="200"><img src="docs/images/user_home.png" width="180" alt="사용자 홈"></td>
-    <td align="center" width="200"><img src="docs/images/guardian_home.png" width="180" alt="보호자 홈"></td>
-    <td align="center" width="200"><img src="docs/images/guardian_trend.png" width="180" alt="장기 추이"></td>
-    <td align="center" width="200"><img src="docs/images/guardian_alerts.png" width="180" alt="알림센터"></td>
-  </tr>
-  <tr>
-    <td align="center"><b>소리로 지켜봐요</b></td>
-    <td align="center"><b>하루를 한눈에</b></td>
-    <td align="center"><b>변화를 놓치지 않아요</b></td>
-    <td align="center"><b>위험은 바로 알려요</b></td>
-  </tr>
-</table>
-
 ---
 
 ## 개요
@@ -57,17 +42,46 @@ POCO는 이미 집에 있는 스마트폰 한 대로 이 문제를 풉니다.
 
 **사용자 모드** · 돌봄 대상자의 폰
 
-| 홈 | 분석 | 큰 소리 확인 |
-| :---: | :---: | :---: |
-| <img src="docs/images/user_home.png" width="180" alt="사용자 홈"> | <img src="docs/images/user_analysis.png" width="180" alt="사용자 분석"> | <img src="docs/images/user_sos.png" width="180" alt="큰 소리 확인"> |
-| 실시간 소리 감지 상태, 재실 여부, 배터리 | 오늘 감지된 활동 기록 | 평소보다 큰 소리가 들리면 확인, SOS 요청 가능 |
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/user_home.png" alt="홈"></td>
+    <td align="center"><img src="docs/images/user_analysis.png" alt="분석"></td>
+    <td align="center"><img src="docs/images/user_sos.png" alt="긴급 상황 확인"></td>
+    <td></td>
+  </tr>
+  <tr>
+    <td align="center">홈</td>
+    <td align="center">분석</td>
+    <td align="center">긴급 상황 확인</td>
+    <td></td>
+  </tr>
+</table>
+
+- **홈**: 실시간 소리 감지 상태, 재실 여부, 배터리
+- **분석**: 오늘 감지된 활동 기록
+- **긴급 상황 확인**: 평소보다 큰 소리가 들리면 확인하고, 필요하면 SOS 요청
 
 **보호자 모드** · 보호자의 폰
 
-| 홈 | 타임라인 | 추이 | 알림센터 |
-| :---: | :---: | :---: | :---: |
-| <img src="docs/images/guardian_home.png" width="180" alt="보호자 홈"> | <img src="docs/images/guardian_timeline.png" width="180" alt="타임라인"> | <img src="docs/images/guardian_trend.png" width="180" alt="장기 추이"> | <img src="docs/images/guardian_alerts.png" width="180" alt="알림센터"> |
-| 오늘의 활동 요약, 실시간 상태, 최근 위험 알림 | 오늘의 행동 기록 | 1주·1개월·6개월 활동 추이와 생활 규칙성 | 위험 알림, 이상 탐지 알림 |
+<table>
+  <tr>
+    <td align="center"><img src="docs/images/guardian_home.png" alt="홈"></td>
+    <td align="center"><img src="docs/images/guardian_timeline.png" alt="타임라인"></td>
+    <td align="center"><img src="docs/images/guardian_trend.png" alt="추이"></td>
+    <td align="center"><img src="docs/images/guardian_alerts.png" alt="알림센터"></td>
+  </tr>
+  <tr>
+    <td align="center">홈</td>
+    <td align="center">타임라인</td>
+    <td align="center">추이</td>
+    <td align="center">알림센터</td>
+  </tr>
+</table>
+
+- **홈**: 오늘의 활동 요약, 실시간 상태, 최근 위험 알림
+- **타임라인**: 오늘의 행동 기록
+- **추이**: 1주·1개월·6개월 활동 추이와 생활 규칙성
+- **알림센터**: 위험 알림, 이상 탐지 알림
 
 ## 소리 인식과 판정
 
@@ -103,7 +117,7 @@ POCO는 이미 집에 있는 스마트폰 한 대로 이 문제를 풉니다.
 - **실시간 소리 인식**: 마이크 입력을 온디바이스에서 분류하고, 큰 소리를 분석하는 동안에는 "소리 분석 중"으로 표시합니다.
 - **생활 패턴 기록**: 세탁, 식사, 설거지, 청소, 대화·TV 소리를 활동으로 묶어 "오늘의 활동 기록"으로 보여주고, 폰의 움직임으로 취침·기상 시각도 추정합니다.
 - **재실 판단**: GPS로 집 안(HOME)과 집 밖(OUTSIDE)을 구분합니다. 집 위치는 "집으로 설정"으로 지정합니다.
-- **큰 소리 확인과 SOS**: 비명·반복 경적이 감지되면 "괜찮으신가요?" 확인 화면이 자동으로 뜹니다. SOS를 요청하면 서버에 긴급 요청이 기록되고 보호자에게 푸시가 전달됩니다. 119 등 외부 기관과의 실제 연동은 되어 있지 않습니다.
+- **긴급 상황 확인과 SOS**: 비명·반복 경적이 감지되면 "괜찮으신가요?" 확인 화면이 자동으로 뜹니다. SOS를 요청하면 서버에 긴급 요청이 기록되고 보호자에게 푸시가 전달됩니다. 119 등 외부 기관과의 실제 연동은 되어 있지 않습니다.
 - **설정**: 마이크 감도, 알림 설정, 보호자 연동 관리(QR 초대), 계정 정보를 제공합니다.
 
 **보호자 모드**
