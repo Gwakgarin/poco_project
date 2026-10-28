@@ -323,7 +323,7 @@ class AudioMonitorService : Service() {
                 "Server save failed: ${t.message ?: t::class.java.simpleName}"
             }
             val dangerStatus = try {
-                postDangerAlertIfNeeded(result.label)
+                postDangerAlertIfNeeded(result.label, result.score)
             } catch (t: Throwable) {
                 Log.e("POCO", "Danger alert save failed", t)
                 "Danger alert failed: ${t.message ?: t::class.java.simpleName}"
@@ -387,11 +387,16 @@ class AudioMonitorService : Service() {
         }
     }
 
-    private fun postDangerAlertIfNeeded(label: String): String? {
+    private fun postDangerAlertIfNeeded(label: String, score: Float): String? {
         val latest = locationStore.getLatest()
         val state = latest?.second ?: HomeState.UNKNOWN
         val detectedAt = System.currentTimeMillis()
-        val decision = dangerPolicy.evaluate(label, state, detectedAt) ?: return null
+        val decision = dangerPolicy.evaluate(label, state, detectedAt, score) ?: run {
+            if (label.equals("scream", ignoreCase = true)) {
+                Log.d("POCO", "scream ignored: score=$score < ${DangerPolicy.SCREAM_MIN_SCORE}")
+            }
+            return null
+        }
         // 서버 저장 성공 여부와 상관없이 사용자 화면에 확인 화면을 띄우도록 먼저 알린다.
         sendDangerPrompt(decision.reason)
         val deviceId = locationStore.backendDeviceId()

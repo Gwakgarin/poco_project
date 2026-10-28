@@ -23,14 +23,22 @@ data class DangerDecision(
  */
 class DangerPolicy(
     private val hornRepeatCount: Int = 3,
-    private val hornWindowMs: Long = 30_000L
+    private val hornWindowMs: Long = 30_000L,
+    private val screamMinScore: Float = SCREAM_MIN_SCORE
 ) {
     private val hornDetectedAt = ArrayDeque<Long>()
 
     /** 위험 조건이 아니면 null, 조건을 만족하면 알림에 사용할 판단 결과를 반환한다. */
-    fun evaluate(label: String, homeState: HomeState, detectedAtEpochMs: Long): DangerDecision? {
+    fun evaluate(
+        label: String,
+        homeState: HomeState,
+        detectedAtEpochMs: Long,
+        score: Float = 1f
+    ): DangerDecision? {
         return when (label.lowercase()) {
-            "scream" -> DangerDecision(DangerLevel.DANGER, "scream_detected")
+            // 분류기 확신도가 낮은 scream(큰 소리 오인식 후보)은 위험으로 확정하지 않는다.
+            "scream" ->
+                if (score >= screamMinScore) DangerDecision(DangerLevel.DANGER, "scream_detected") else null
             "car_horn" -> evaluateCarHorn(homeState, detectedAtEpochMs)
             else -> null
         }
@@ -54,5 +62,10 @@ class DangerPolicy(
         // 한 번 알림을 만든 기록을 다음 알림에 중복 사용하지 않도록 초기화한다.
         hornDetectedAt.clear()
         return DangerDecision(DangerLevel.CANDIDATE, "car_horn_repeated")
+    }
+
+    companion object {
+        /** 테스트셋 기준 진짜 비명은 0.97 이상, 오탐(phone_alarm)은 0.41 이하. 실기기 로그로 조정할 것. */
+        const val SCREAM_MIN_SCORE = 0.7f
     }
 }

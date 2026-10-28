@@ -17,6 +17,16 @@ class DangerPolicyTest {
     }
 
     @Test
+    fun `low confidence scream does not alert`() {
+        val policy = DangerPolicy()
+
+        assertNull(policy.evaluate("scream", HomeState.HOME, 1L, score = 0.4f))
+        assertNull(policy.evaluate("scream", HomeState.OUTSIDE, 2L, score = 0.69f))
+        assertEquals(DangerLevel.DANGER, policy.evaluate("scream", HomeState.HOME, 3L, score = 0.7f)?.level)
+        assertEquals(DangerLevel.DANGER, policy.evaluate("scream", HomeState.HOME, 4L, score = 0.97f)?.level)
+    }
+
+    @Test
     fun `car horn does not alert at home`() {
         val policy = DangerPolicy(hornRepeatCount = 3)
 
