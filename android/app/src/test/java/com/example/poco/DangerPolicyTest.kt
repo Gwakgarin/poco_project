@@ -27,6 +27,22 @@ class DangerPolicyTest {
     }
 
     @Test
+    fun `quiet scream does not alert when db gate is set`() {
+        val policy = DangerPolicy(screamMinDb = 65.0)
+
+        assertNull(policy.evaluate("scream", HomeState.HOME, 1L, score = 0.95f, segmentDb = 60.0))
+        assertEquals(DangerLevel.DANGER, policy.evaluate("scream", HomeState.HOME, 2L, score = 0.95f, segmentDb = 65.0)?.level)
+        assertNull(policy.evaluate("scream", HomeState.HOME, 3L, score = 0.5f, segmentDb = 80.0))
+    }
+
+    @Test
+    fun `default db gate does not block scream`() {
+        val policy = DangerPolicy()
+
+        assertEquals(DangerLevel.DANGER, policy.evaluate("scream", HomeState.HOME, 1L, score = 0.9f, segmentDb = 10.0)?.level)
+    }
+
+    @Test
     fun `car horn does not alert at home`() {
         val policy = DangerPolicy(hornRepeatCount = 3)
 

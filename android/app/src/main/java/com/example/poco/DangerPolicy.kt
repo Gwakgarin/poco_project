@@ -24,7 +24,8 @@ data class DangerDecision(
 class DangerPolicy(
     private val hornRepeatCount: Int = 3,
     private val hornWindowMs: Long = 30_000L,
-    private val screamMinScore: Float = SCREAM_MIN_SCORE
+    private val screamMinScore: Float = SCREAM_MIN_SCORE,
+    private val screamMinDb: Double = SCREAM_MIN_DB
 ) {
     private val hornDetectedAt = ArrayDeque<Long>()
 
@@ -33,12 +34,17 @@ class DangerPolicy(
         label: String,
         homeState: HomeState,
         detectedAtEpochMs: Long,
-        score: Float = 1f
+        score: Float = 1f,
+        segmentDb: Double = Double.POSITIVE_INFINITY
     ): DangerDecision? {
         return when (label.lowercase()) {
-            // 분류기 확신도가 낮은 scream(큰 소리 오인식 후보)은 위험으로 확정하지 않는다.
+            // 분류기 확신도가 낮거나 소리가 작은 scream(큰 소리 오인식 후보)은 위험으로 확정하지 않는다.
             "scream" ->
-                if (score >= screamMinScore) DangerDecision(DangerLevel.DANGER, "scream_detected") else null
+                if (score >= screamMinScore && segmentDb >= screamMinDb) {
+                    DangerDecision(DangerLevel.DANGER, "scream_detected")
+                } else {
+                    null
+                }
             "car_horn" -> evaluateCarHorn(homeState, detectedAtEpochMs)
             else -> null
         }
@@ -67,5 +73,8 @@ class DangerPolicy(
     companion object {
         /** 테스트셋 기준 진짜 비명은 0.97 이상, 오탐(phone_alarm)은 0.41 이하. 실기기 로그로 조정할 것. */
         const val SCREAM_MIN_SCORE = 0.7f
+
+        /** scream 확정에 필요한 5초 구간 최대 0.5초 창 dB. 0이면 사실상 비활성, 전시장 실측 후 설정할 것. */
+        const val SCREAM_MIN_DB = 0.0
     }
 }

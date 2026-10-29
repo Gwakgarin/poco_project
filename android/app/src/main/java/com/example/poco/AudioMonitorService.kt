@@ -282,6 +282,7 @@ class AudioMonitorService : Service() {
         val wavFile = saveWav(samples)
         try {
             val waveform = samples.toFloatWaveform()
+            val segmentDb = logSegmentDb(samples)
 
             Log.d("POCO", "AudioMonitorService classification started")
             val yamnetOutput = YamNetEmbedder(applicationContext).use { it.extract(waveform) }
@@ -323,7 +324,7 @@ class AudioMonitorService : Service() {
                 "Server save failed: ${t.message ?: t::class.java.simpleName}"
             }
             val dangerStatus = try {
-                postDangerAlertIfNeeded(result.label, result.score)
+                postDangerAlertIfNeeded(result.label, result.score, segmentDb)
             } catch (t: Throwable) {
                 Log.e("POCO", "Danger alert save failed", t)
                 "Danger alert failed: ${t.message ?: t::class.java.simpleName}"
@@ -341,6 +342,25 @@ class AudioMonitorService : Service() {
                 Log.w("POCO", "AudioMonitorService wav delete failed: ${wavFile.name}")
             }
         }
+    }
+
+    /** 전시장 임계값 튜닝용: 5초 구간 전체 dB(평균)와 0.5초 창별 최대 dB, 최대 진폭을 로그로 남긴다. */
+    private fun logSegmentDb(samples: ShortArray): Double {
+        val window = SAMPLE_RATE / 2
+        var maxWindowDb = 0.0
+        var start = 0
+        while (start < samples.size) {
+            val count = minOf(window, samples.size - start)
+            maxWindowDb = maxOf(maxWindowDb, calculateDb(samples.copyOfRange(start, start + count), count))
+            start += window
+        }
+        val avgDb = calculateDb(samples, samples.size)
+        val peak = samples.maxOf { kotlin.math.abs(it.toInt()) }
+        Log.d(
+            "POCO",
+            "SEGMENT_DB avg=${"%.1f".format(avgDb)} maxWindow=${"%.1f".format(maxWindowDb)} peak=$peak"
+        )
+        return maxWindowDb
     }
 
     private fun calculateDb(buffer: ShortArray, sampleCount: Int): Double {
@@ -387,13 +407,13 @@ class AudioMonitorService : Service() {
         }
     }
 
-    private fun postDangerAlertIfNeeded(label: String, score: Float): String? {
+    private fun postDangerAlertIfNeeded(label: String, score: Float, segmentDb: Double): String? {
         val latest = locationStore.getLatest()
         val state = latest?.second ?: HomeState.UNKNOWN
         val detectedAt = System.currentTimeMillis()
-        val decision = dangerPolicy.evaluate(label, state, detectedAt, score) ?: run {
+        val decision = dangerPolicy.evaluate(label, state, detectedAt, score, segmentDb) ?: run {
             if (label.equals("scream", ignoreCase = true)) {
-                Log.d("POCO", "scream ignored: score=$score < ${DangerPolicy.SCREAM_MIN_SCORE}")
+                Log.d("POCO", "scream ignored: score=$score (min ${DangerPolicy.SCREAM_MIN_SCORE}) maxWindowDb=${"%.1f".format(segmentDb)} (min ${DangerPolicy.SCREAM_MIN_DB})")
             }
             return null
         }
