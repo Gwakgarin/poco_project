@@ -253,9 +253,10 @@ private fun GuardianHeader(monitoredUserLabel: String) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            // 상태바 영역은 카드 밖에 두어 상태바 아이콘이 네이비 카드 위에 겹치지 않게 한다.
+            .windowInsetsPadding(WindowInsets.statusBars)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(20.dp))
             .background(PocoNavy)
-            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = 20.dp, vertical = 22.dp)
     ) {
         Text(text = "보호자 모드", color = Color.White.copy(alpha = 0.65f), fontSize = 13.sp)

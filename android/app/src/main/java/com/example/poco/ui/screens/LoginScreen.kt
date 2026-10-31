@@ -1,5 +1,6 @@
 package com.example.poco.ui.screens
 
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -97,7 +98,8 @@ fun LoginFormScreen(
     val isValid = email.isNotBlank() && password.isNotBlank()
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        // 키보드가 올라와도 로그인 버튼이 가려지지 않게 키보드 높이만큼 올린다.
+        Column(modifier = Modifier.fillMaxSize().imePadding()) {
             PocoTopBar(title = "로그인", onBack = onBack)
 
             Column(

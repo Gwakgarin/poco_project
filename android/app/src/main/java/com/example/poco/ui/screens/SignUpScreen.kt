@@ -1,5 +1,6 @@
 package com.example.poco.ui.screens
 
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -44,7 +45,7 @@ fun SignUpScreen(
         password.isNotBlank() && password == passwordConfirm
 
     Surface(modifier = modifier.fillMaxSize(), color = Color.White) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(modifier = Modifier.fillMaxSize().imePadding()) {
             PocoTopBar(title = "회원가입", onBack = onBack)
 
             Column(

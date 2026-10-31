@@ -1,6 +1,7 @@
 package com.example.poco.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -89,9 +90,17 @@ fun AccountInfoScreen(
 
 @Composable
 private fun InfoRow(label: String, value: String) {
-    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
         Text(text = label, color = PocoTextMuted, fontSize = 14.sp)
-        Text(text = value, color = PocoTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        // 이메일처럼 값이 길어도 라벨과 겹치지 않고 오른쪽 정렬로 줄바꿈되게 남은 너비만 쓴다.
+        Text(
+            text = value,
+            color = PocoTextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Medium,
+            textAlign = TextAlign.End,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 
