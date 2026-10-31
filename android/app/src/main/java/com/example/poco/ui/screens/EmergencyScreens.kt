@@ -141,18 +141,13 @@ fun EmergencyUserScreen(
 @Composable
 fun EmergencyGuardianScreen(
     onCheckLocation: () -> Unit,
-    onDispatch: () -> Unit,
     onCall: () -> Unit,
     modifier: Modifier = Modifier,
     /** "{이름} · {N분 전} · {비명/경적 감지}" 형태. 연동된 사용자와 최근 위험 알림을 못 불러온 동안의 기본값은 호출부에서 넘긴다. */
     patientSummaryLabel: String = "연동된 사용자 · 확인 중",
     /** "집 안" / "외출 중" 등 실제 위치 조회 결과. 자택과의 거리(m)는 서버가 내려주지 않아 표시하지 않는다. */
-    locationSummaryLabel: String = "위치 정보를 불러오는 중...",
-    dispatchErrorMessage: String? = null,
-    isDispatching: Boolean = false
+    locationSummaryLabel: String = "위치 정보를 불러오는 중..."
 ) {
-    var showDispatchConfirm by remember { mutableStateOf(false) }
-
     Surface(modifier = modifier.fillMaxSize(), color = PocoNavy) {
         Column(modifier = Modifier.fillMaxSize()) {
             Column(
@@ -205,14 +200,6 @@ fun EmergencyGuardianScreen(
                     Text(text = "마지막 위치: $locationSummaryLabel", color = PocoTextPrimary, fontSize = 14.sp)
                 }
                 SecondaryButton(text = "위치 확인하기", onClick = onCheckLocation)
-                if (dispatchErrorMessage != null) {
-                    Text(text = dispatchErrorMessage, color = PocoRed, fontSize = 13.sp)
-                }
-                DangerButton(
-                    text = if (isDispatching) "알리는 중..." else "긴급 상황 알리기",
-                    onClick = { showDispatchConfirm = true },
-                    enabled = !isDispatching
-                )
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -233,27 +220,6 @@ fun EmergencyGuardianScreen(
                 }
             }
         }
-    }
-
-    if (showDispatchConfirm) {
-        AlertDialog(
-            onDismissRequest = { showDispatchConfirm = false },
-            title = { Text(text = "긴급 상황을 알릴까요?", fontWeight = FontWeight.Bold) },
-            text = { Text(text = "마지막 위치와 함께 보호자에게 알림이 전달돼요") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showDispatchConfirm = false
-                    onDispatch()
-                }) {
-                    Text(text = "알리기", color = PocoRed, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDispatchConfirm = false }) {
-                    Text(text = "취소", color = PocoTextMuted)
-                }
-            }
-        )
     }
 }
 
@@ -457,7 +423,7 @@ private fun EmergencyUserScreenPreview() {
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)
 @Composable
 private fun EmergencyGuardianScreenPreview() {
-    POCOTheme { EmergencyGuardianScreen(onCheckLocation = {}, onDispatch = {}, onCall = {}) }
+    POCOTheme { EmergencyGuardianScreen(onCheckLocation = {}, onCall = {}) }
 }
 
 @Preview(showBackground = true, widthDp = 412, heightDp = 892)

@@ -1147,16 +1147,11 @@ fun PocoNavHost(
         composable(PocoRoutes.EMERGENCY_GUARDIAN) {
             val context = LocalContext.current
             val locationStore = remember(context) { LocationStore(context) }
-            val scope = rememberCoroutineScope()
-            var targetDeviceId by remember { mutableStateOf<Long?>(null) }
             var targetPhoneNumber by remember { mutableStateOf<String?>(null) }
             var patientSummaryLabel by remember { mutableStateOf("연동된 사용자 · 확인 중") }
             var locationSummaryLabel by remember { mutableStateOf("위치 정보를 불러오는 중...") }
-            var dispatchErrorMessage by remember { mutableStateOf<String?>(null) }
-            var isDispatching by remember { mutableStateOf(false) }
             LaunchedEffect(Unit) {
                 val deviceId = resolveEmergencyTargetDeviceId(locationStore)
-                targetDeviceId = deviceId
                 val monitoredUser = runCatching { resolveMonitoredUser(locationStore) }.getOrNull()
                 targetPhoneNumber = monitoredUser?.phoneNumber
                 if (deviceId == null) {
@@ -1192,43 +1187,14 @@ fun PocoNavHost(
             EmergencyGuardianScreen(
                 patientSummaryLabel = patientSummaryLabel,
                 locationSummaryLabel = locationSummaryLabel,
-                // 위치를 본 뒤 뒤로가면 긴급 화면을 거치지 않고 바로 홈으로 가도록 긴급 화면을 대체한다.
-                onCheckLocation = {
-                    navController.navigate(PocoRoutes.EMERGENCY_LOCATION) {
-                        popUpTo(PocoRoutes.EMERGENCY_GUARDIAN) { inclusive = true }
-                    }
-                },
-                onDispatch = {
-                    val deviceId = targetDeviceId
-                    val dispatchedBy = locationStore.currentUserId()
-                    if (deviceId == null || dispatchedBy == null) {
-                        dispatchErrorMessage = "연동된 사용자 정보를 확인할 수 없어요. 잠시 후 다시 시도해주세요."
-                        return@EmergencyGuardianScreen
-                    }
-                    isDispatching = true
-                    dispatchErrorMessage = null
-                    scope.launch {
-                        val result = runCatching {
-                            ServerApiClient.api.dispatchEmergency(EmergencyDispatchRequest(deviceId, dispatchedBy))
-                        }.getOrNull()
-                        isDispatching = false
-                        if (result?.success == true) {
-                            navController.navigate(PocoRoutes.EMERGENCY_DISPATCHED) {
-                                popUpTo(PocoRoutes.EMERGENCY_GUARDIAN) { inclusive = true }
-                            }
-                        } else {
-                            dispatchErrorMessage = result?.message ?: "요청에 실패했어요. 다시 시도해주세요."
-                        }
-                    }
-                },
+                // 위치 화면 위에 쌓아서, 뒤로가면 긴급 화면이 그대로 떠 있어 전화 걸기도 이어서 할 수 있다.
+                onCheckLocation = { navController.navigate(PocoRoutes.EMERGENCY_LOCATION) },
                 onCall = {
                     val phoneNumber = targetPhoneNumber
                     if (phoneNumber != null) {
                         context.startActivity(Intent(Intent.ACTION_DIAL, Uri.parse("tel:$phoneNumber")))
                     }
-                },
-                dispatchErrorMessage = dispatchErrorMessage,
-                isDispatching = isDispatching
+                }
             )
         }
     }
