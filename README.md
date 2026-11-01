@@ -276,3 +276,32 @@ cd android
 - `TrendAggregatorTest`(42개), `TrendUiStateMapperTest`(11개): 추이 화면의 기간별 집계, 변화율, 규칙성 계산과 UI 상태 변환 검증
 - 위 61개 외에 Android 프로젝트 생성 시 기본 포함되는 보일러플레이트 테스트(`ExampleUnitTest`)가 있으나 프로젝트 로직 검증과는 무관해 제외했습니다.
 - `backend` 브랜치에는 Spring Boot 기본 생성 시 포함되는 컨텍스트 로딩 테스트(`PocoApplicationTests`) 외에 별도 로직 테스트가 아직 없습니다.
+
+## 팀 여학교의 별
+
+<table>
+  <tr>
+    <td align="center"><a href="https://github.com/rovvxyoon"><img src="https://github.com/rovvxyoon.png" width="56" height="56" alt="rovvxyoon"></a></td>
+    <td align="center"><a href="https://github.com/Gwakgarin"><img src="https://github.com/Gwakgarin.png" width="56" height="56" alt="Gwakgarin"></a></td>
+    <td align="center"><a href="https://github.com/hnKim-works"><img src="https://github.com/hnKim-works.png" width="56" height="56" alt="hnKim-works"></a></td>
+    <td align="center"><a href="https://github.com/wavlike"><img src="https://github.com/wavlike.png" width="56" height="56" alt="wavlike"></a></td>
+  </tr>
+  <tr>
+    <td align="center"><a href="https://github.com/rovvxyoon">김정윤</a></td>
+    <td align="center"><a href="https://github.com/Gwakgarin">곽가린</a></td>
+    <td align="center"><a href="https://github.com/hnKim-works">김한나</a></td>
+    <td align="center"><a href="https://github.com/wavlike">김지윤</a></td>
+  </tr>
+  <tr>
+    <td align="center"><b>팀장</b></td>
+    <td align="center"><b>풀스택</b></td>
+    <td align="center"><b>AI&nbsp;분류&nbsp;모델</b></td>
+    <td align="center"><b>백엔드</b></td>
+  </tr>
+  <tr>
+    <td align="center" valign="top"><sub>AI&nbsp;분류&nbsp;모델&nbsp;개발</sub></td>
+    <td align="center" valign="top"><sub>안드로이드&nbsp;앱&nbsp;개발<br>API&nbsp;연동<br>DB&nbsp;설계<br>UI/UX&nbsp;설계</sub></td>
+    <td align="center" valign="top"><sub>AI&nbsp;분류&nbsp;모델&nbsp;개발<br>GPS&nbsp;추적&nbsp;로직</sub></td>
+    <td align="center" valign="top"><sub>DB&nbsp;설계&nbsp;및&nbsp;구현<br>API&nbsp;개발<br>서버&nbsp;구축&nbsp;및&nbsp;배포</sub></td>
+  </tr>
+</table>
