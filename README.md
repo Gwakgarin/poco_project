@@ -221,7 +221,7 @@ export DB_PASSWORD="본인의 MySQL 비밀번호"
 ./gradlew bootRun
 ```
 
-Android 앱의 `ServerApiClient.BASE_URL`(`android/app/src/main/java/com/example/poco/ServerApi.kt`)은 기본적으로 `http://3.25.227.173:8080/`(AWS EC2에 배포된 실제 서버)를 가리킵니다. 로컬 백엔드로 다시 테스트하려면 이 값을 아래 중 하나로 바꿔주세요.
+Android 앱의 `ServerApiClient.BASE_URL`(`android/app/src/main/java/com/example/poco/ServerApi.kt`)은 기본적으로 `http://16.178.74.116:8080/`(AWS EC2에 배포된 실제 서버)를 가리킵니다. 로컬 백엔드로 다시 테스트하려면 이 값을 아래 중 하나로 바꿔주세요.
 
 - 에뮬레이터에서 로컬 백엔드에 붙일 때: `BASE_URL`을 `"http://10.0.2.2:8080/"`으로 변경
 - USB + `adb reverse tcp:8080 tcp:8080`으로 실기기 연결할 때: `"http://127.0.0.1:8080/"`으로 변경

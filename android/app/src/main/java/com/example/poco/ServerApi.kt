@@ -453,7 +453,7 @@ object ServerApiClient {
     // - USB + adb reverse tcp:8080 tcp:8080 방식: "http://127.0.0.1:8080/"
     // - 에뮬레이터에서 로컬 서버 테스트: "http://10.0.2.2:8080/"
     // - 같은 Wi-Fi에서 실기기 테스트: PC의 로컬 IP (ipconfig로 확인)
-    private const val BASE_URL = "http://3.25.227.173:8080/"
+    private const val BASE_URL = "http://16.178.74.116:8080/"
 
     private val retrofit = Retrofit.Builder()
         .baseUrl(BASE_URL)
